@@ -1,0 +1,383 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1e1e24;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    color: #fff;
+}
+
+.container {
+    max-width: 650px;
+    width: 100%;
+    background: #2d2d35;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+h1, h3 {
+    text-align: center;
+    color: #4caf50;
+    margin-top: 0;
+}
+
+.match-mode-container {
+    background: #222227;
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #3d3d45;
+}
+
+.radio-group {
+    display: flex;
+    justify-content: space-around;
+    font-size: 14px;
+}
+
+.radio-group label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.player-form-container {
+    background: #222227;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #444;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.form-row input { flex: 2; }
+.form-row select { flex: 1; }
+
+.skills-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 5px;
+    margin-bottom: 15px;
+}
+
+.skills-row label {
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.player-form-container input, .player-form-container select {
+    padding: 8px;
+    background: #3a3a42;
+    border: 1px solid #555;
+    color: white;
+    border-radius: 6px;
+}
+
+.skills-row input {
+    width: 45px;
+    text-align: center;
+}
+
+.add-btn {
+    width: 100%;
+    padding: 10px;
+    background: #4caf50;
+    border: none;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.player-list {
+    max-height: 180px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    padding: 10px;
+    border-radius: 6px;
+    background: #222227;
+    margin-bottom: 15px;
+}
+
+.player-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid #333;
+    font-size: 14px;
+}
+
+.player-item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.skill-badges span {
+    font-size: 11px;
+    background: #444;
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-left: 3px;
+}
+
+#generateBtn {
+    width: 100%;
+    padding: 14px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 25px;
+}
+
+/* ⚽ HALI SAHA VE DİZİLİM AYARLARI */
+.pitch-container {
+    display: flex;
+    justify-content: center;
+}
+
+.pitch {
+    width: 480px;
+    height: 700px;
+    background-color: #2e7d32;
+    border: 4px solid white;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.4);
+}
+
+.center-line {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: white;
+}
+
+.center-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 120px;
+    border: 4px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.penalty-box {
+    position: absolute;
+    left: 25%;
+    width: 50%;
+    height: 80px;
+    border: 4px solid white;
+    box-sizing: border-box;
+}
+.penalty-box.top { 
+    top: 0; border-top: none; 
+}
+
+.penalty-box.bottom { 
+    bottom: 0; border-bottom: none; 
+}
+
+.goal-area {
+    position: absolute;
+    left: 35%;
+    width: 30%;
+    height: 35px;
+    border: 4px solid white;
+    box-sizing: border-box;
+}
+.goal-area.top { 
+    display: none !important; 
+}
+
+.goal-area.bottom { 
+    display: none !important; 
+}
+
+.penalty-arc-top {
+    position: absolute;
+    top: 35px;        /* Üst ceza sahası çizgisinin bittiği yere göre hizalandı */
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    /* Sadece alt yarım daireyi görünür yaparak ceza sahası önündeki yayı oluşturur */
+    clip-path: inset(45px 0px 0px 0px); 
+    z-index: 1;
+}
+
+.penalty-arc-bottom {
+    position: absolute;
+    bottom: 35px;     /* Alt ceza sahası çizgisinin bittiği yere göre hizalandı */
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    /* Sadece üst yarım daireyi görünür yaparak ceza sahası önündeki yayı oluşturur */
+    clip-path: inset(0px 0px 45px 0px);
+    z-index: 1;
+}
+
+.team-pitch-area {
+    position: absolute;
+    width: 100%;
+    height: 50%;
+}
+#redTeamPitch { top: 0; }
+#whiteTeamPitch { bottom: 0; }
+
+.player-card {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    width: 80px;
+    transform: translateX(-50%);
+    transition: all 0.5s ease;
+}
+
+/* Kırmızı ve Beyaz için esnek sıralama (İsimlerin yukarı/aşağı yerleşimi) */
+.red-card { flex-direction: column-reverse; } /* Kırmızıda isim en altta olacak */
+.white-card { flex-direction: column; } /* Beyazda isim en altta kalacak */
+
+/* 👕 FUTBOL FORMASI CSS TASARIMI */
+.shirt-container {
+    position: relative;
+    width: 60px; /* Görseldeki gibi kollar dahil toplam genişlik */
+    height: 40px; /* Forma gövdesinin net yüksekliği */
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+/* 📐 Formanın Ana Gövdesi (Ortadaki Dikdörtgen) */
+.shirt-main {
+    width: 32px; /* Gövdenin genişliği */
+    height: 38px; /* Gövdenin yüksekliği */
+    background-color: inherit; /* Takım rengini otomatik alır (kırmızı/beyaz) */
+    position: relative;
+    z-index: 2; /* Güç puanı ve kolların önüne geçmesini sağlar */
+    border-radius: 1px 1px 0 0; /* Omuzları hafifçe yumuşatır */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    /* 🔟 Güç Puanının Font Ayarları */
+    color: white;
+    font-size: 13px;
+    font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+    font-family: sans-serif;
+}
+
+/* 📐 Formanın Kolları İçin Ortak Ayarlar (Arkada ve Dikdörtgen) */
+.shirt-sleeve-left, .shirt-sleeve-right {
+    position: absolute;
+    width: 15px; /* Kolların genişliği */
+    height: 20px; /* Kolların yüksekliği */
+    background-color: inherit; /* Takım rengini otomatik alır */
+    z-index: 1; /* 🎯 ÇÖZÜM: Gövdenin (shirt-main) arkasında kalmasını sağlar */
+    top: 3px; /* Kolların omuzdan biraz aşağıdan başlamasını sağlar */
+}
+
+/* 📐 Sol Kolun Pozisyonu ve Açısı (Dışarı ve Aşağı) */
+.shirt-sleeve-left {
+    left: 4px; /* Kolun gövdeden sola doğru açılmasını sağlar */
+    border-radius: 2px 0 0 2px; /* Dış kenarı hafif yumuşatır */
+    
+    /* 🎯 ÇÖZÜM: Kolu görseldeki gibi dışarıya doğru 20 derece döndürür */
+    transform: rotate(-20deg);
+}
+
+/* 📐 Sağ Kolun Pozisyonu ve Açısı (Dışarı ve Aşağı) */
+.shirt-sleeve-right {
+    right: 4px; /* Kolun gövdeden sağa doğru açılmasını sağlar */
+    border-radius: 0 2px 2px 0; /* Dış kenarı hafif yumuşatır */
+    
+    /* 🎯 ÇÖZÜM: Kolu görseldeki gibi dışarıya doğru 20 derece döndürür */
+    transform: rotate(20deg);
+}
+
+/* Kırmızı formayı ve kollarını 180 derece döndürme efekti */
+.red-jersey {
+    transform: rotate(180deg);
+}
+/* Kırmızı formanın içindeki sayıların düz okunması için ters çevirme */
+.red-jersey .shirt-main {
+    transform: rotate(180deg);
+}
+
+.red-jersey .shirt-main, .red-jersey .shirt-sleeve-left, .red-jersey .shirt-sleeve-right {
+    background-color: #d90429;
+    color: white;
+    border: 1px solid #b30000;
+}
+.white-jersey .shirt-main, .white-jersey .shirt-sleeve-left, .white-jersey .shirt-sleeve-right {
+    background-color: #ffffff;
+    color: #2b2d42;
+    border: 1px solid #ccc;
+}
+
+/* Kırmızı kaleci forması da ters dönecek */
+.red-gk { transform: rotate(180deg); }
+.red-gk .shirt-main { transform: rotate(180deg); }
+
+.gk-jersey .shirt-main, .gk-jersey .shirt-sleeve-left, .gk-jersey .shirt-sleeve-right {
+    background-color: #ffb703;
+    color: black;
+    border: 1px solid #fb8500;
+}
+
+.player-name {
+    white-space: nowrap !important; /* 🎯 ÇÖZÜM: Yazının alt satıra geçmesini KESİNLİKLE engeller, tek satır yapar */
+    width: auto !important; /* 🎯 ÇÖZÜM: Sabit genişliği kaldırır, kutu isim uzunluğuna göre otomatik uzar */
+    
+    text-overflow: clip !important; /* Üç noktayı (...) tamamen kapatır */
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 5px;
+    
+    /* 🖤 Orijinal Siyah Arka Plan Ayarları */
+    background: rgba(0, 0, 0, 0.85) !important; /* Net, belirgin siyah arka plan */
+    color: #ffffff !important; /* Beyaz yazı */
+    padding: 3px 8px !important; /* Sağdan soldan biraz daha rahat pay verdik */
+    border-radius: 4px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    
+    position: relative;
+    display: inline-block;
+}
+
+/* Boşluk ayarları */
+.white-card .player-name { margin-top: 5px; }
+.red-card .player-name { margin-bottom: 5px; }
+
+.player-card {
+    z-index: 10 !important; /* Değerin 10 olması sahadaki tüm çizgilerin üstüne çıkması için fazlasıyla yeterlidir */
+}
