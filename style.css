@@ -25,7 +25,7 @@ h1, h3 {
 
 .match-mode-container {
     background: #222227;
-    padding: 12px;
+    padding: 4px;
     border-radius: 10px;
     margin-bottom: 15px;
     border: 1px solid #3d3d45;
@@ -101,7 +101,7 @@ h1, h3 {
 }
 
 .player-list {
-    max-height: 180px;
+    max-height: 200px;
     overflow-y: auto;
     border: 1px solid #444;
     padding: 10px;
@@ -380,4 +380,27 @@ h1, h3 {
 
 .player-card {
     z-index: 10 !important; /* Değerin 10 olması sahadaki tüm çizgilerin üstüne çıkması için fazlasıyla yeterlidir */
+}
+
+/* ===================================================
+   🎯 OYUNCU HAVUZU ÜSTÜNDEKİ OKLA GÖSTERİLEN BOŞLUĞU KISMA
+   =================================================== */
+
+/* 1. "Oyuncu Havuzu" başlığının altındaki gereksiz boşluğu sıfırlıyoruz */
+#listHeader {
+    margin-bottom: 10px !important;
+    margin-top: 5px !important;
+}
+
+/* 2. JS ile sonradan eklenen "Tümünü Seç / Kaldır" buton kutusunun boşluklarını sıkıştırıyoruz */
+#listHeader + div {
+    margin: 6px 0 !important; /* app.js içindeki 'margin: 8px 0' ayarını ezdik */
+    display: flex !important;
+    gap: 5px !important;
+}
+
+/* 3. Listenin en tepesindeki boşluğu tamamen kaldırıp butonlara yaklaştırıyoruz */
+.player-list {
+    margin-top: 2px !important;
+    padding-top: 2px !important;
 }

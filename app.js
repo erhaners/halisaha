@@ -1,17 +1,22 @@
-console.log("🚀 DOSYA OKUNDU: app.js başarıyla tetiklendi!");
+console.log("🚀 DOSYA OKUNDU: Geliştirilmiş app.js başarıyla tetiklendi!");
+
 // ==========================================
 // 🛠️ FIREBASE BAĞLANTI AYARLARI
 // ==========================================
-
 const firebaseConfig = {
     apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
     authDomain: "halisaha-taktik.firebaseapp.com",
-    databaseURL: "https://halisaha-taktik-default-rtdb.firebaseio.com/", // Konsolda "Realtime Database" oluşturduğunda bu URL netleşecek, genelde bu formatta olur.
+    databaseURL: "https://halisaha-taktik-default-rtdb.firebaseio.com/", 
     projectId: "halisaha-taktik",
     storageBucket: "halisaha-taktik.firebasestorage.app",
     messagingSenderId: "682186454054",
     appId: "1:682186454054:web:27f9299909557daea2e7"
 };
+
+// ==========================================
+// 🔒 GÜVENLİK VE YÖNETİCİ AYARLARI
+// ==========================================
+const YONETICI_SIFRESI = "12";
 
 // Küresel değişkenlerimiz
 let database;
@@ -19,23 +24,19 @@ let oyuncular = [];
 let duzenlenenId = null;
 let manuelKadro = { red: {}, white: {} };
 
-// 🎯 GARANTİLİ BAŞLATICI: window.onload yerine tarayıcının yerleşik dinleyicisini kullanıyoruz
-// Bu sayede hiçbir şekilde başka bir kodla çakışmaz ve HTML hazır olduğu an kesin çalışır.
 document.addEventListener("DOMContentLoaded", () => {
     console.log("📌 Sayfa tamamen yüklendi, Firebase dinleyicisi başlatılıyor...");
     
+    ArayüzElemanlariniHazirla();
+
     try {
-        // Firebase'i güvenli modda başlatıyoruz
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
-            console.log("🔥 2. Adım: Firebase başarıyla initialize edildi.");
+            console.log("🔥 Firebase başarıyla initialize edildi.");
         }
         database = firebase.database();
         
-        // Veritabanını dinlemeye başla
         veriTabaniniDinle();
-        
-        // Mod fonksiyonunu çağır
         modDegisti();
         
     } catch (hata) {
@@ -43,17 +44,50 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// 🎯 Veri dinleme fonksiyonu (Geliştirilmiş log takibi ile)
+function ArayüzElemanlariniHazirla() {
+    const listHeader = document.getElementById("listHeader");
+    if (listHeader && !document.getElementById("btnTumunuKaldir")) {
+        const btnDiv = document.createElement("div");
+        btnDiv.style.margin = "8px 0";
+        btnDiv.innerHTML = `
+            <button id="btnTumunuKaldir" onclick="tumSecimleriDegistir(false)" style="background: #ff5555; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; margin-right: 5px;">Tümünü Kaldır</button>
+            <button id="btnTumunuSec" onclick="tumSecimleriDegistir(true)" style="background: #55ff55; color: #111; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;">Tümünü Seç</button>
+        `;
+        listHeader.parentNode.insertBefore(btnDiv, listHeader.nextSibling);
+    }
+
+    if (!document.getElementById("macKayitPaneli")) {
+        const anaContainer = document.querySelector(".container") || document.body;
+        const kayitDiv = document.createElement("div");
+        kayitDiv.id = "macKayitPaneli";
+        kayitDiv.style.cssText = "background: #1e1e1e; border: 1px solid #333; padding: 15px; margin-top: 20px; border-radius: 8px; color: white;";
+        kayitDiv.innerHTML = `
+            <h3>⚽ Maç Sonucu ve Skor Kayıt Paneli</h3>
+            <div style="display: flex; gap: 15px; margin-bottom: 10px; flex-wrap: wrap;">
+                <label>Kırmızı Skor: <input type="number" id="skorRed" value="0" style="width: 50px; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:3px;"></label>
+                <label>Beyaz Skor: <input type="number" id="skorWhite" value="0" style="width: 50px; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:3px;"></label>
+                <label>Maç Tarihi: <input type="date" id="macTarihi" style="background:#333; color:white; border:1px solid #555; border-radius:4px; padding:3px;"></label>
+                <button onclick="macSkorunuKaydet()" style="background: #ffcc00; color: #111; border:none; padding:5px 15px; font-weight:bold; border-radius:4px; cursor:pointer;">Maçı Geçmişe Kaydet</button>
+            </div>
+            <div id="macGecmisiListesi" style="margin-top: 10px; max-height: 150px; overflow-y: auto; font-size: 13px; color: #bbb;"></div>
+        `;
+        anaContainer.appendChild(kayitDiv);
+        
+        document.getElementById("macTarihi").valueAsDate = new Date();
+    }
+}
+
 function veriTabaniniDinle() {
-    console.log("🛰️ 3. Adım: Veri tabanına köprü kuruluyor, 'oyuncular' düğümü dinleniyor...");
-    
     database.ref("oyuncular").on("value", (snapshot) => {
-        console.log("📥 4. Adım: Firebase'den bir veri sinyali geldi!");
         const data = snapshot.val();
-        console.log("📊 Gelen veri içeriği:", data);
         
+        const seciliHafiza = {};
+        document.querySelectorAll(".player-checkbox").forEach(cb => {
+            seciliHafiza[cb.value] = cb.checked;
+        });
+        const ilkYuklemeMi = Object.keys(seciliHafiza).length === 0;
+
         oyuncular = [];
-        
         if (data) {
             Object.keys(data).forEach(key => {
                 oyuncular.push({
@@ -66,12 +100,11 @@ function veriTabaniniDinle() {
                     huc: data[key].huc
                 });
             });
+            oyuncular.sort((a, b) => a.isim.localeCompare(b.isim, 'tr', { sensitivity: 'base' }));
         }
         
-        console.log("✅ 5. Adım: Oyuncu dizisi güncellendi, arayüz çiziliyor. Toplam oyuncu:", oyuncular.length);
-        listeyiYenile();
-    }, (error) => {
-        console.error("❌ Firebase okuma izni hatası (Kurallar engelliyor olabilir):", error);
+        listeyiYenile(seciliHafiza, ilkYuklemeMi);
+        macGecmisiniDinle();
     });
 }
 
@@ -82,17 +115,19 @@ window.onload = function() {
 function modDegisti() {
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
     const header = document.getElementById("listHeader");
-    if (mod === "6v6") {
-        header.innerText = "Oyuncu Havuzu (Maç için 12 kişi seçin)";
-    } else {
-        header.innerText = "Oyuncu Havuzu (Maç için 14 kişi seçin)";
+    if (header) {
+        header.innerText = mod === "6v6" ? "Oyuncu Havuzu (Maç için 12 kişi seçin)" : "Oyuncu Havuzu (Maç için 14 kişi seçin)";
     }
-    // Mod değiştiğinde manuel seçimleri sıfırlayalım ki harita kaymasın
     manuelKadro = { red: {}, white: {} };
-    listeyiYenile();
+    listeyiYenile({}, true);
 }
 
-// ✏️ Oyuncu Ekleme VE Düzenleme Ortak Fonksiyonu
+function tumSecimleriDegistir(durum) {
+    document.querySelectorAll(".player-checkbox").forEach(cb => {
+        cb.checked = durum;
+    });
+}
+
 function oyuncuEkle() {
     let isim = document.getElementById("playerName").value.trim();
     const anaMevki = document.getElementById("playerRole").value;
@@ -106,7 +141,6 @@ function oyuncuEkle() {
         return;
     }
 
-    // 🎯 ÇÖZÜM 4: Oyuncu ismini otomatik olarak Türkçe büyük harfe çeviriyoruz
     isim = isim.toLocaleUpperCase('tr-TR');
 
     if (duzenlenenId !== null) {
@@ -121,16 +155,13 @@ function oyuncuEkle() {
             isim, anaMevki, kl, def, ort, huc
         });
     }
-
     document.getElementById("playerName").value = "";
 }
 
-// ✏️ Düzenleme Modunu Tetikleyen Fonksiyon
 function oyuncuDuzenleFormDoldur(id) {
     const oyuncu = oyuncular.find(o => o.id === id);
     if (!oyuncu) return;
 
-    // Bilgileri input alanlarına geri dolduruyoruz
     document.getElementById("playerName").value = oyuncu.isim;
     document.getElementById("playerRole").value = oyuncu.anaMevki;
     document.getElementById("skillKL").value = oyuncu.kl;
@@ -138,21 +169,23 @@ function oyuncuDuzenleFormDoldur(id) {
     document.getElementById("skillORT").value = oyuncu.ort;
     document.getElementById("skillHUC").value = oyuncu.huc;
 
-    // Küresel id'yi kaydet ve ekleme butonunun metnini değiştir
     duzenlenenId = id;
     const btn = document.querySelector("button[onclick='oyuncuEkle()']");
     if (btn) btn.innerText = "Değişiklikleri Kaydet";
-    
-    // Sayfayı hafifçe yukarı kaydır ki kullanıcı formu net görsün
     window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function oyuncuSil(id) {
+    const sifre = prompt("Güvenlik Doğrulaması: Lütfen silme işlemi için yönetici şifresini girin:");
+    if (sifre === null) return; 
+    if (sifre !== YONETICI_SIFRESI) {
+        alert("❌ Hatalı Şifre! Yetkiniz olmadan oyuncu silemezsiniz.");
+        return;
+    }
+
     const onay = confirm("Bu oyuncuyu listeden tamamen silmek istediğinize emin misiniz?");
     if (onay) {
-        // Firebase'den tek satırda silme işlemi
         database.ref("oyuncular/" + id).remove();
-        
         if (duzenlenenId === id) {
             duzenlenenId = null;
             const btn = document.querySelector("button[onclick='oyuncuEkle()']");
@@ -161,26 +194,30 @@ function oyuncuSil(id) {
     }
 }
 
-function listeyiYenile() {
+// 🎯 DÜZELTME: Satır yüksekliği tamamen sıkıştırıldı. min-height iptal edildi ve tam dikey hizalandı.
+function listeyiYenile(seciliHafiza = {}, ilkYuklemeMi = false) {
     const listeDiv = document.getElementById("playerList");
+    if (!listeDiv) return;
     listeDiv.innerHTML = "";
 
     oyuncular.forEach(o => {
+        const isChecked = ilkYuklemeMi ? true : (seciliHafiza[o.id] !== undefined ? seciliHafiza[o.id] : true);
+
         listeDiv.innerHTML += `
-            <div class="player-item" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div class="player-item-left">
-                    <input type="checkbox" checked value="${o.id}" class="player-checkbox">
-                    <span><strong>${o.isim}</strong> (${o.anaMevki})</span>
+            <div class="player-item" style="display: flex; justify-content: space-between; align-items: center; padding: 4px 5px; margin-bottom: 4px; border-bottom: 1px solid #2a2a2a;">
+                <div class="player-item-left" style="display: flex; align-items: center; gap: 6px;">
+                    <input type="checkbox" ${isChecked ? "checked" : ""} value="${o.id}" class="player-checkbox" style="margin: 0; cursor: pointer; transform: scale(0.9);">
+                    <span style="font-size: 13px; line-height: 1;"><strong>${o.isim}</strong> <span style="color:#888; font-size:11px;">(${o.anaMevki})</span></span>
                 </div>
                 <div class="player-item-right" style="display: flex; align-items: center; gap: 10px;">
-                    <div class="skill-badges">
-                        <span style="color:#ffcc00">KL:${o.kl}</span>
-                        <span style="color:#5995ff">DF:${o.def}</span>
-                        <span style="color:#55ff55">OS:${o.ort}</span>
-                        <span style="color:#ff5555">HC:${o.huc}</span>
+                    <div class="skill-badges" style="display: flex; gap: 3px; align-items: center;">
+                        <span style="color:#ffcc00; font-size:11px; padding: 1px 4px; background: #222; border-radius:3px; font-weight:bold;">KL:${o.kl}</span>
+                        <span style="color:#5995ff; font-size:11px; padding: 1px 4px; background: #222; border-radius:3px; font-weight:bold;">DF:${o.def}</span>
+                        <span style="color:#55ff55; font-size:11px; padding: 1px 4px; background: #222; border-radius:3px; font-weight:bold;">OS:${o.ort}</span>
+                        <span style="color:#ff5555; font-size:11px; padding: 1px 4px; background: #222; border-radius:3px; font-weight:bold;">HC:${o.huc}</span>
                     </div>
-                    <button onclick="oyuncuDuzenleFormDoldur('${o.id}')" style="background: none; border: none; color: #ffcc00; cursor: pointer; font-size: 16px; padding: 0 2px;" title="Oyuncuyu Düzenle">✏️</button>
-                    <button onclick="oyuncuSil('${o.id}')" style="background: none; border: none; color: #ff5555; cursor: pointer; font-size: 16px; padding: 0 2px;" title="Oyuncuyu Sil">🗑️</button>
+                    <button onclick="oyuncuDuzenleFormDoldur('${o.id}')" style="background: none; border: none; color: #ffcc00; cursor: pointer; font-size: 13px; display: flex; align-items: center; padding: 0;" title="Düzenle">✏️</button>
+                    <button onclick="oyuncuSil('${o.id}')" style="background: none; border: none; color: #ff5555; cursor: pointer; font-size: 13px; display: flex; align-items: center; padding: 0;" title="Sil">🗑️</button>
                 </div>
             </div>
         `;
@@ -188,50 +225,70 @@ function listeyiYenile() {
 }
 
 function genelPuanHesapla(puanObj) {
-    if (!puanObj) return 50; // Koruma amaçlı varsayılan değer
-
-    // Gelen değerlerin sayısal olduğundan emin oluyoruz
+    if (!puanObj) return 50;
     const kl = parseInt(puanObj.kl) || 50;
     const def = parseInt(puanObj.def) || 50;
     const ort = parseInt(puanObj.ort) || 50;
     const huc = parseInt(puanObj.huc) || 50;
 
-    // Oyuncunun ana mevkisi "KL" (Kaleci) ise
     if (puanObj.anaMevki === "KL") {
-        // 🧤 Kaleciler için sadece Kalecilik ve Defans ortalaması
         return Math.round(kl);
     } else {
-        // 🏃 Diğer oyuncular için Kalecilik HARİÇ (Defans, Orta Saha, Hücum) ortalaması
         return Math.round((def + ort + huc) / 3);
     }
 }
 
 function takimiPozisyonlandir(takim, mod) {
-    let kalanlar = [...takim];
     let kadro = { KL: null, DEF: [], ORT: [], HUC: [] };
+    
+    let kaleciler = takim.filter(o => o.anaMevki === "KL").sort((a, b) => b.kl - a.kl);
+    let secilenKaleci = kaleciler.length > 0 ? kaleciler[0] : [...takim].sort((a, b) => b.kl - a.kl)[0];
+    kadro.KL = secilenKaleci;
+    
+    let kalanlar = takim.filter(o => o.id !== secilenKaleci.id);
 
-    kalanlar.sort((a, b) => b.kl - a.kl);
-    kadro.KL = kalanlar.shift();
+    let forvetler = kalanlar.filter(o => o.anaMevki === "HUC").sort((a, b) => b.huc - a.huc);
+    let secilenForvet = forvetler.length > 0 ? forvetler[0] : [...kalanlar].sort((a, b) => b.huc - a.huc)[0];
+    kadro.HUC.push(secilenForvet);
+    kalanlar = kalanlar.filter(o => o.id !== secilenForvet.id);
 
-    kalanlar.sort((a, b) => b.huc - a.huc);
-    kadro.HUC.push(kalanlar.shift());
-
-    kalanlar.sort((a, b) => b.def - a.def);
+    let gerekenDefansSayisi = mod === "6v6" ? 2 : 3;
+    let defansAdaylari = kalanlar.filter(o => o.anaMevki === "DEF").sort((a, b) => b.def - a.def);
+    
+    while (defansAdaylari.length < gerekenDefansSayisi && kalanlar.length > 0) {
+        let ekAday = kalanlar.filter(o => !defansAdaylari.includes(o)).sort((a, b) => b.def - a.def)[0];
+        if(ekAday) defansAdaylari.push(ekAday);
+        else break;
+    }
+    
+    defansAdaylari.sort((a, b) => b.def - a.def);
+    let stoper = defansAdaylari.shift(); 
+    
     if (mod === "6v6") {
-        kadro.DEF.push(kalanlar.shift(), kalanlar.shift());
+        kadro.DEF.push(stoper, defansAdaylari[0]);
     } else {
-        kadro.DEF.push(kalanlar.shift(), kalanlar.shift(), kalanlar.shift());
+        kadro.DEF.push(defansAdaylari[0], stoper, defansAdaylari[1]);
+    }
+    
+    let secilenDefIdleri = kadro.DEF.map(d => d ? d.id : null);
+    kalanlar = kalanlar.filter(o => !secilenDefIdleri.includes(o.id));
+
+    kalanlar.sort((a, b) => b.ort - a.ort);
+    let ortMevkililer = kalanlar.filter(o => o.anaMevki === "ORT");
+    let gobekOyuncusu = ortMevkililer.length > 0 ? ortMevkililer[0] : kalanlar[0];
+
+    if (gobekOyuncusu) {
+        let digerleri = kalanlar.filter(o => o.id !== gobekOyuncusu.id);
+        kadro.ORT = [gobekOyuncusu, ...digerleri];
+    } else {
+        kadro.ORT = kalanlar;
     }
 
-    kadro.ORT = kalanlar;
     return kadro;
 }
 
-// 📋 Yeni: Boş Sahayı Manuel Seçim İçin Hazırlayan Fonksiyon
 function manuelKadroBaslat() {
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
-    
-    // Boş kadro şablonu oluşturuyoruz
     const bosKadroRed = { KL: null, DEF: mod === "6v6" ? [null, null] : [null, null, null], ORT: [null, null], HUC: [null] };
     const bosKadroWhite = { KL: null, DEF: mod === "6v6" ? [null, null] : [null, null, null], ORT: [null, null], HUC: [null] };
     
@@ -239,73 +296,64 @@ function manuelKadroBaslat() {
     sahayaDiz(bosKadroWhite, "whiteTeamPitch", "white", mod, true);
 }
 
-// 🔄 Güncellenmiş Sahaya Dizme Fonksiyonu (Manuel Seçim Desteği Eklendi)
+// 🎯 DÜZELTME: Sahanın dikey margin-top değeri kaldırıldı, böylece kırmızı takım oyuncuları yukarı kayıp eski yerini aldı!
 function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
     const sahaDiv = document.getElementById(sahaId);
-    if (!sahaDiv) {
-        console.warn("⚠️ Saha elementi henüz HTML'de bulunamadı. Çizim erteleniyor...");
-        return;
-    }
+    if (!sahaDiv) return;
     sahaDiv.innerHTML = "";
+
+    sahaDiv.style.marginTop = "0px"; // Pozisyon bozulmalarını engellemek için sıfırlandı
 
     let konumlar = [];
     const genelGen = (puanObj) => genelPuanHesapla(puanObj);
 
     if (takimRenk === "red") {
-        // ==========================================
-        // KIRMIZI TAKIM (ÜST YARI) KOORDİNATLARI
-        // ==========================================
-        
-        konumlar.push({ id: "pos_0", x: 50, y: 2, s: "gk-jersey red-gk", p: isManuel ? (manuelKadro.red["pos_0"] || null) : kadro.KL }); // Kaleci
-        
+        konumlar.push({ id: "pos_0", x: 50, y: 0, s: "gk-jersey red-gk", p: isManuel ? (manuelKadro.red["pos_0"] || null) : kadro.KL });
         if (mod === "6v6") { 
-            // 6v6 Modunda Kırmızı Oyuncular
-            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_1"] || null) : kadro.DEF[0] }); // Sol Bek
-            konumlar.push({ id: "pos_2", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); // Sağ Bek
-            konumlar.push({ id: "pos_3", x: 32, y: 52, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.ORT[0] }); // Sol Orta Saha
-            konumlar.push({ id: "pos_4", x: 68, y: 52, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[1] }); // Sağ Orta Saha
+            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_1"] || null) : kadro.DEF[0] }); 
+            konumlar.push({ id: "pos_2", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); 
+            konumlar.push({ id: "pos_3", x: 32, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.ORT[0] }); 
+            konumlar.push({ id: "pos_4", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[1] });
         } else { 
-            // 7v7 Modunda Kırmızı Oyuncular
-            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_1"] || null) : kadro.DEF[0] }); // Sol Bek
-            konumlar.push({ id: "pos_2", x: 50, y: 24, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); // Stoper
-            konumlar.push({ id: "pos_3", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.DEF[2] }); // Sağ Bek
-            konumlar.push({ id: "pos_4", x: 32, y: 52, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[0] }); // Sol Orta Saha
-            konumlar.push({ id: "pos_5", x: 68, y: 52, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] }); // Sağ Orta Saha
+            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_1"] || null) : kadro.DEF[0] }); 
+            konumlar.push({ id: "pos_2", x: 50, y: 22, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); 
+            konumlar.push({ id: "pos_3", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.DEF[2] }); 
+            konumlar.push({ id: "pos_4", x: 32, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[0] }); 
+            konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
-        konumlar.push({ id: fvtId, x: 50, y: 72, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] }); // Forvet
+        konumlar.push({ id: fvtId, x: 50, y: 72, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] });
     
     } else {
-        // ==========================================
-        // BEYAZ TAKIM (ALT YARI) KOORDİNATLARI
-        // ==========================================
-        
-        konumlar.push({ id: "pos_0", x: 50, y: 81, s: "gk-jersey", p: isManuel ? (manuelKadro.white["pos_0"] || null) : kadro.KL }); // Kaleci
-        
+        konumlar.push({ id: "pos_0", x: 50, y: 81, s: "gk-jersey", p: isManuel ? (manuelKadro.white["pos_0"] || null) : kadro.KL });
         if (mod === "6v6") { 
-            // 6v6 Modunda Beyaz Oyuncular
-            konumlar.push({ id: "pos_1", x: 20, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_1"] || null) : kadro.DEF[0] }); // Sol Bek
-            konumlar.push({ id: "pos_2", x: 80, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_2"] || null) : kadro.DEF[1] }); // Sağ Bek
-            konumlar.push({ id: "pos_3", x: 32, y: 30, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_3"] || null) : kadro.ORT[0] }); // Sol Orta Saha
-            konumlar.push({ id: "pos_4", x: 68, y: 30, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_4"] || null) : kadro.ORT[1] }); // Sağ Orta Saha
+            konumlar.push({ id: "pos_1", x: 20, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_1"] || null) : kadro.DEF[0] }); 
+            konumlar.push({ id: "pos_2", x: 80, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_2"] || null) : kadro.DEF[1] }); 
+            konumlar.push({ id: "pos_3", x: 32, y: 28, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_3"] || null) : kadro.ORT[0] }); 
+            konumlar.push({ id: "pos_4", x: 68, y: 28, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_4"] || null) : kadro.ORT[1] });
         } else { 
-            // 7v7 Modunda Beyaz Oyuncular
-            konumlar.push({ id: "pos_1", x: 20, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_1"] || null) : kadro.DEF[0] }); // Sol Bek
-            konumlar.push({ id: "pos_2", x: 50, y: 58, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_2"] || null) : kadro.DEF[1] }); // Stoper
-            konumlar.push({ id: "pos_3", x: 80, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_3"] || null) : kadro.DEF[2] }); // Sağ Bek
-            konumlar.push({ id: "pos_4", x: 32, y: 30, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_4"] || null) : kadro.ORT[0] }); // Sol Orta Saha
-            konumlar.push({ id: "pos_5", x: 68, y: 30, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_5"] || null) : kadro.ORT[1] }); // Sağ Orta Saha
+            konumlar.push({ id: "pos_1", x: 20, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_1"] || null) : kadro.DEF[0] }); 
+            konumlar.push({ id: "pos_2", x: 50, y: 58, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_2"] || null) : kadro.DEF[1] }); 
+            konumlar.push({ id: "pos_3", x: 80, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_3"] || null) : kadro.DEF[2] }); 
+            konumlar.push({ id: "pos_4", x: 32, y: 28, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_4"] || null) : kadro.ORT[0] }); 
+            konumlar.push({ id: "pos_5", x: 68, y: 28, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_5"] || null) : kadro.ORT[1] });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
-        konumlar.push({ id: fvtId, x: 50, y: 10, s: "white-jersey", p: isManuel ? (manuelKadro.white[fvtId] || null) : kadro.HUC[0] }); // Forvet
+        konumlar.push({ id: fvtId, x: 50, y: 10, s: "white-jersey", p: isManuel ? (manuelKadro.white[fvtId] || null) : kadro.HUC[0] });
     }
 
-    // Arayüze Elemanları Basma Döngüsü
+    const atananRedIdler = Object.values(manuelKadro.red).filter(o => o !== null).map(o => String(o.id));
+    const atananWhiteIdler = Object.values(manuelKadro.white).filter(o => o !== null).map(o => String(o.id));
+    const kesinlikleSeciliIdler = [...atananRedIdler, ...atananWhiteIdler];
+    const kullanilabilirOyuncular = oyuncular.filter(o => !kesinlikleSeciliIdler.includes(String(o.id)));
+    kullanilabilirOyuncular.sort((a, b) => a.isim.localeCompare(b.isim, 'tr'));
+
+    let takimToplamGucu = 0;
+
     konumlar.forEach(k => {
         const cardClass = takimRenk === "red" ? "player-card red-card" : "player-card white-card";
-        
         if (k.p) {
-            // 🎯 GÜNCELLENDİ: Formaya tıklandığında oyuncuyu o pozisyondan kaldıran onclick eklendi
+            takimToplamGucu += genelGen(k.p);
             sahaDiv.innerHTML += `
                 <div class="${cardClass}" style="left: ${k.x}%; top: ${k.y}%; cursor: pointer;" onclick="manuelOyuncuKaldır('${takimRenk}', '${k.id}', '${mod}')" title="Oyuncuyu kaldırmak için tıklayın">
                     <div class="shirt-container ${k.s}">
@@ -317,14 +365,6 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
                 </div>
             `;
         } else {
-            // Hem kırmızı hem beyaz takıma atanmış TÜM oyuncuların id'lerini güvenli şekilde topluyoruz
-            const atananRedIdler = Object.values(manuelKadro.red).filter(o => o !== null).map(o => String(o.id));
-            const atananWhiteIdler = Object.values(manuelKadro.white).filter(o => o !== null).map(o => String(o.id));
-            const kesinlikleSeciliIdler = [...atananRedIdler, ...atananWhiteIdler];
-
-            // Havuzdaki oyunculardan halihazırda sahada olanları tamamen eliyoruz
-            const kullanilabilirOyuncular = oyuncular.filter(o => !kesinlikleSeciliIdler.includes(String(o.id)));
-
             sahaDiv.innerHTML += `
                 <div class="${cardClass}" style="left: ${k.x}%; top: ${k.y}%; z-index: 20;">
                     <select onchange="manuelOyuncuSec(this, '${takimRenk}', '${k.id}', '${sahaId}', '${mod}')" style="width: 140px; font-size: 11px; background: #1e1e1e; color: white; border: 1px solid #555; border-radius: 4px; padding: 2px; cursor: pointer;">
@@ -335,47 +375,69 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
             `;
         }
     });
+
+    GucEtiketiniGuncelle(takimRenk, takimToplamGucu);
 }
 
-// 🤝 Yeni: Manuel Olarak Açılır Kutudan Oyuncu Seçildiğinde Tetiklenen Fonksiyon
+// 🎯 YENİLİK: Takım güçlerini 500 üzerinden dolan barlar şeklinde görselleştiriyoruz
+function GucEtiketiniGuncelle(renk, guc) {
+    let etiketId = renk === "red" ? "redTeamPowerLabel" : "whiteTeamPowerLabel";
+    let etiket = document.getElementById(etiketId);
+    
+    // Üstteki gri arayüz alanını (butonların altını) hedefliyoruz
+    let hedefKonteynir = document.querySelector(".pitch-container") || document.querySelector(".tactics-board");
+    
+    if (!etiket && hedefKonteynir) {
+        etiket = document.createElement("div");
+        etiket.id = etiketId;
+        etiket.style.cssText = "padding: 8px 12px; background: #252529; border-radius: 8px; display: block; margin: 6px auto; width: 92%; border: 1px solid #333; box-shadow: 0 2px 5px rgba(0,0,0,0.4);";
+        hedefKonteynir.parentNode.insertBefore(etiket, hedefKonteynir);
+    }
+    
+    if (etiket) {
+        const maksGuc = 500;
+        // Yüzdelik oranı hesaplıyoruz (Maksimum %100 olacak şekilde sınırlıyoruz)
+        let yuzde = Math.min((guc / maksGuc) * 100, 100);
+        
+        let barRengi = renk === "red" ? "#ff4d4d" : "#ffffff";
+        let metinRengi = renk === "red" ? "#ff4d4d" : "#ffffff";
+        let takimAdi = renk === "red" ? "🔴 Kırmızı Takım" : "⚪ Beyaz Takım";
+        let icYaziRengi = renk === "red" ? "#ffffff" : "#111111"; // Beyaz barın üstündeki yazı siyah olsun ki okunsun
+
+        etiket.innerHTML = `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; font-weight: bold; color: ${metinRengi};">
+                <span>${takimAdi}</span>
+                <span>${guc} / ${maksGuc} Puan</span>
+            </div>
+            <div style="width: 100%; background: #1a1a1e; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid #444; position: relative;">
+                <div style="width: ${yuzde}%; background: ${barRengi}; height: 100%; transition: width 0.4s ease-out; display: flex; align-items: center; justify-content: flex-end; padding-right: 5px; box-sizing: border-box;">
+                    ${yuzde > 12 ? `<span style="color: ${icYaziRengi}; font-size: 10px; font-weight: bold;">%${Math.round(yuzde)}</span>` : ''}
+                </div>
+            </div>
+        `;
+    }
+}
+
 function manuelOyuncuSec(selectElement, takimRenk, posId, sahaId, mod) {
     const secilenId = selectElement.value;
-    
     if (!secilenId) {
         delete manuelKadro[takimRenk][posId];
     } else {
         const oyuncu = oyuncular.find(o => o.id == secilenId);
         manuelKadro[takimRenk][posId] = oyuncu;
     }
-
-    // 🎯 ÇÖZÜM: Bir oyuncu seçildiğinde her iki takımın sahasını da yeniden çiziyoruz
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
 }
 
-// 🔄 Yeni: Formaya tıklandığında oyuncuyu pozisyondan silip açılır kutuyu geri getiren fonksiyon
+// ... (Kalan tüm fonksiyonlar (takimlariKur, macSkorunuKaydet vb.) kararlılık açısından aynen korunmuştur)
+
 function manuelOyuncuKaldır(takimRenk, posId, mod) {
-    // Sadece manuel kadro modundaysak bu tıklama çalışsın
-    // (Otomatik kadro kurulduğunda yanlışlıkla tıklayıp bozmamak için koruma)
-    if (Object.keys(manuelKadro.red).length === 0 && Object.keys(manuelKadro.white).length === 0) {
-        // Eğer her iki hafıza da tamamen boşsa, muhtemelen otomatik kadrodur, işlem yapma.
-        // Ama eğer manuel başlattıysan hafıza nesneleri dolmaya başlar. 
-    }
-
-    // Seçilen pozisyondaki oyuncuyu hafızadan siliyoruz
     delete manuelKadro[takimRenk][posId];
-
-    // Her iki sahayı da yeniden çizerek açılır kutuyu geri getiriyoruz
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
 }
 
-// ==========================================
-// 🤖 ORİJİNAL YAPIDA OTOMATİK DENGELİ TAKIM KURMA
-// ==========================================
-// ==========================================
-// 🤖 ORİJİNAL YAPIDA OTOMATİK DENGELİ TAKIM KURMA (SİLİNME KORUMALI)
-// ==========================================
 function takimlariKur() {
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
     const gerekenOyuncu = mod === "6v6" ? 12 : 14;
@@ -395,20 +457,7 @@ function takimlariKur() {
         return;
     }
  
-    // 🎯 YENİ GÜÇ HESAPLAMA KURALI
-    const yeniGenelPuanHesapla = (o) => {
-        const kl = parseInt(o.kl) || 50;
-        const def = parseInt(o.def) || 50;
-        const ort = parseInt(o.ort) || 50;
-        const huc = parseInt(o.huc) || 50;
-        
-        if (o.anaMevki === "KL") {
-            return kl;
-        } else {
-            return Math.round((def + ort + huc) / 3);
-        }
-    };
-
+    const yeniGenelPuanHesapla = (o) => genelPuanHesapla(o);
     seciliOyuncular.sort((a, b) => yeniGenelPuanHesapla(b) - yeniGenelPuanHesapla(a));
  
     let takimA = [];
@@ -430,12 +479,8 @@ function takimlariKur() {
     const diziliA = takimiPozisyonlandir(takimA, mod);
     const diziliB = takimiPozisyonlandir(takimB, mod);
 
-    // ==========================================================
-    // 🧠 ADAPTİF DÖNÜŞTÜRÜCÜ: Otomatik Kadroyu Manuel Kadroya Eşitleme
-    // ==========================================================
     manuelKadro = { red: {}, white: {} };
 
-    // Kırmızı Takımı (DiziliA) pos_0, pos_1 formatına çeviriyoruz
     manuelKadro.red["pos_0"] = diziliA.KL || null;
     manuelKadro.red["pos_1"] = diziliA.DEF[0] || null;
     manuelKadro.red["pos_2"] = diziliA.DEF[1] || null;
@@ -450,7 +495,6 @@ function takimlariKur() {
         manuelKadro.red["pos_6"] = diziliA.HUC[0] || null;
     }
 
-    // Beyaz Takımı (DiziliB) pos_0, pos_1 formatına çeviriyoruz
     manuelKadro.white["pos_0"] = diziliB.KL || null;
     manuelKadro.white["pos_1"] = diziliB.DEF[0] || null;
     manuelKadro.white["pos_2"] = diziliB.DEF[1] || null;
@@ -464,29 +508,132 @@ function takimlariKur() {
         manuelKadro.white["pos_5"] = diziliB.ORT[1] || null;
         manuelKadro.white["pos_6"] = diziliB.HUC[0] || null;
     }
-    // ==========================================================
  
-    // 🎯 Çizimi doğrudan MANUEL mod tetikleyicisiyle (true) başlatıyoruz ki köprü baştan kurulsun!
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
-    
-    console.log("🚀 Otomatik kadro başarıyla kuruldu ve düzenlenebilir korumalı moda senkronize edildi!");
 }
 
-// ==========================================
-// ✏️ SARI BUTON İÇİN: MANUEL KADRO BAŞLATICISI
-// ==========================================
 function manuelKadroButonTetikle() {
-    console.log("✏️ Manuel kadro kurulum modu başlatılıyor...");
-    
-    // Projenin orijinal hafıza nesnelerini temizliyoruz
     manuelKadro = { red: {}, white: {} };
-    
-    // Orijinal boş sahayı oluşturma fonksiyonunu çağırıyoruz
     if (typeof manuelKadroBaslat === "function") {
         manuelKadroBaslat();
-        console.log("🟢 Boş saha seçici kutularla birlikte başarıyla hazırlandı.");
-    } else {
-        console.error("❌ Projede manuelKadroBaslat fonksiyonu bulunamadı!");
+    }
+}
+
+function macSkorunuKaydet() {
+    const sifre = prompt("Güvenlik Doğrulaması: Skor kaydetmek için lütfen yönetici şifresini girin:");
+    if (sifre === null) return;
+    if (sifre !== YONETICI_SIFRESI) {
+        alert("❌ Hatalı Şifre!");
+        return;
+    }
+
+    const skorR = document.getElementById("skorRed").value;
+    const skorW = document.getElementById("skorWhite").value;
+    const tarih = document.getElementById("macTarihi").value;
+
+    if (!tarih) {
+        alert("Lütfen geçerli bir maç tarihi seçin!");
+        return;
+    }
+
+    const kirmiziKadro = Object.values(manuelKadro.red).filter(o => o !== null).map(o => o.isim).join(", ");
+    const beyazKadro = Object.values(manuelKadro.white).filter(o => o !== null).map(o => o.isim).join(", ");
+
+    if(!kirmiziKadro || !beyazKadro) {
+        alert("Geçmişe kaydetmeden önce sahada kurulmuş bir kadro bulunmalıdır!");
+        return;
+    }
+
+    database.ref("mac_gecmisi").push({
+        tarih: tarih,
+        skorKirmizi: skorR,
+        skorBeyaz: skorW,
+        kirmiziKadro: kirmiziKadro,
+        beyazKadro: beyazKadro
+    }).then(() => {
+        alert("✅ Maç sonucu başarıyla geçmişe kaydedildi!");
+    });
+}
+
+// Global bir değişkenle geçmişin açık/kapalı durumunu kontrol ediyoruz
+let gecmisAcikMi = false;
+
+function macGecmisiniDinle() {
+    database.ref("mac_gecmisi").on("value", (snapshot) => {
+        const data = snapshot.val();
+        const listeDiv = document.getElementById("macGecmisiListesi");
+        if (!listeDiv) return;
+        listeDiv.innerHTML = "";
+
+        if (data) {
+            const maclar = [];
+            Object.keys(data).forEach(key => {
+                maclar.push({ id: key, ...data[key] });
+            });
+            // Maçları tarihe göre yeniden eskiye sıralıyoruz
+            maclar.sort((a, b) => b.tarih.localeCompare(a.tarih));
+
+            // 1. En son maçı her halükarda en üstte gösteriyoruz
+            const sonMac = maclar[0];
+            let htmlIcerik = `
+                <div style="background: #252529; border-left: 4px solid #ffcc00; padding: 8px; margin-bottom: 10px; border-radius: 4px;">
+                    <span style="color: #ffcc00; font-weight: bold; font-size: 11px;">🔥 EN SON MAÇ SONUCU</span><br>
+                    <strong>📅 ${sonMac.tarih}</strong> | <span style="color:#ff5555">Kırmızı ${sonMac.skorKirmizi}</span> - <span style="color:#fff">Beyaz ${sonMac.skorBeyaz}</span>
+                    <br><small style="color:#aaa">🔴 Kırmızı: ${sonMac.kirmiziKadro}</small>
+                    <br><small style="color:#aaa">⚪ Beyaz: ${sonMac.beyazKadro}</small>
+                </div>
+            `;
+
+            // 2. Eğer birden fazla maç varsa buton ve gizli alanı oluşturuyoruz
+            if (maclar.length > 1) {
+                htmlIcerik += `
+                    <button id="btnGecmisiTogle" onclick="gecmisPaneliniTogle()" style="width: 100%; background: #333; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-bottom: 10px; transition: 0.2s;">
+                        ${gecmisAcikMi ? "▲ Geçmiş Maçları Gizle" : `▼ Eski Maçları Göster (${maclar.length - 1} Maç)`}
+                    </button>
+                    <div id="eskiMaclarKutusu" style="display: ${gecmisAcikMi ? "block" : "none"}; max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                `;
+
+                // İlk maç hariç diğer tüm eski maçları bu gizli kutunun içine dolduruyoruz
+                for (let i = 1; i < maclar.length; i++) {
+                    const m = maclar[i];
+                    htmlIcerik += `
+                        <div style="border-bottom: 1px solid #2a2a2a; padding: 6px 0; margin-bottom: 5px; font-size: 12px; color: #999;">
+                            <strong>📅 ${m.tarih}</strong> | <span style="color:#ef4444">Kırmızı ${m.skorKirmizi}</span> - <span style="color:#ccc">Beyaz ${m.skorBeyaz}</span>
+                            <br><small style="color:#666">🔴 Kadro: ${m.kirmiziKadro}</small>
+                            <br><small style="color:#666">⚪ Kadro: ${m.beyazKadro}</small>
+                        </div>
+                    `;
+                }
+
+                htmlIcerik += `</div>`; // Gizli kutuyu kapatıyoruz
+            }
+
+            listeDiv.innerHTML = htmlIcerik;
+
+        } else {
+            listeDiv.innerHTML = "Henüz kaydedilmiş bir maç geçmişi bulunmuyor.";
+        }
+    });
+}
+
+// Butona tıklandığında çalışacak açma/kapama fonksiyonu
+function gecmisPaneliniTogle() {
+    gecmisAcikMi = !gecmisAcikMi;
+    const kutu = document.getElementById("eskiMaclarKutusu");
+    const buton = document.getElementById("btnGecmisiTogle");
+    
+    if (kutu && buton) {
+        if (gecmisAcikMi) {
+            kutu.style.display = "block";
+            buton.innerText = "▲ Geçmiş Maçları Gizle";
+            buton.style.background = "#444";
+        } else {
+            kutu.style.display = "none";
+            // Dinamik olarak içeride kaç eski maç kaldığını buton üstünde tekrar yazar
+            const eskiMacSayisi = kutu.children.length;
+            buton.innerText = `▼ Eski Maçları Göster (${eskiMacSayisi} Maç)`;
+            buton.style.background = "#333";
+        }
     }
 }
