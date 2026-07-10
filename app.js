@@ -319,10 +319,10 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
             konumlar.push({ id: "pos_2", x: 50, y: 22, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); 
             konumlar.push({ id: "pos_3", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.DEF[2] }); 
             konumlar.push({ id: "pos_4", x: 32, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[0] }); 
-            konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] });
+ +           konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
-        konumlar.push({ id: fvtId, x: 50, y: 72, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] });
+        konumlar.push({ id: fvtId, x: 50, y: 75, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] });
     
     } else {
         konumlar.push({ id: "pos_0", x: 50, y: 81, s: "gk-jersey", p: isManuel ? (manuelKadro.white["pos_0"] || null) : kadro.KL });
@@ -339,7 +339,7 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
             konumlar.push({ id: "pos_5", x: 68, y: 28, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_5"] || null) : kadro.ORT[1] });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
-        konumlar.push({ id: fvtId, x: 50, y: 10, s: "white-jersey", p: isManuel ? (manuelKadro.white[fvtId] || null) : kadro.HUC[0] });
+        konumlar.push({ id: fvtId, x: 50, y: 7, s: "white-jersey", p: isManuel ? (manuelKadro.white[fvtId] || null) : kadro.HUC[0] });
     }
 
     const atananRedIdler = Object.values(manuelKadro.red).filter(o => o !== null).map(o => String(o.id));
