@@ -325,7 +325,7 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
         konumlar.push({ id: fvtId, x: 50, y: 75, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] });
     
     } else {
-        konumlar.push({ id: "pos_0", x: 50, y: 81, s: "gk-jersey", p: isManuel ? (manuelKadro.white["pos_0"] || null) : kadro.KL });
+        konumlar.push({ id: "pos_0", x: 50, y: 82, s: "gk-jersey", p: isManuel ? (manuelKadro.white["pos_0"] || null) : kadro.KL });
         if (mod === "6v6") { 
             konumlar.push({ id: "pos_1", x: 20, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_1"] || null) : kadro.DEF[0] }); 
             konumlar.push({ id: "pos_2", x: 80, y: 50, s: "white-jersey", p: isManuel ? (manuelKadro.white["pos_2"] || null) : kadro.DEF[1] }); 

@@ -264,93 +264,72 @@ h1, h3 {
 .red-card { flex-direction: column-reverse; } /* Kırmızıda isim en altta olacak */
 .white-card { flex-direction: column; } /* Beyazda isim en altta kalacak */
 
-/* 👕 FUTBOL FORMASI CSS TASARIMI */
+/* 👕 GERÇEK FORMA GÖRSELLERİ TASARIMI */
 .shirt-container {
     position: relative;
-    width: 60px; /* Görseldeki gibi kollar dahil toplam genişlik */
-    height: 40px; /* Forma gövdesinin net yüksekliği */
+    width: 47px;   /* 2px Genişletildi (Eski hali 45px idi) */
+    height: 45px;  
     margin: 0 auto;
     display: flex;
     justify-content: center;
-    align-items: flex-start;
-}
-
-/* 📐 Formanın Ana Gövdesi (Ortadaki Dikdörtgen) */
-.shirt-main {
-    width: 32px; /* Gövdenin genişliği */
-    height: 38px; /* Gövdenin yüksekliği */
-    background-color: inherit; /* Takım rengini otomatik alır (kırmızı/beyaz) */
-    position: relative;
-    z-index: 2; /* Güç puanı ve kolların önüne geçmesini sağlar */
-    border-radius: 1px 1px 0 0; /* Omuzları hafifçe yumuşatır */
-    display: flex;
     align-items: center;
-    justify-content: center;
-    
-    /* 🔟 Güç Puanının Font Ayarları */
-    color: white;
-    font-size: 13px;
-    font-weight: bold;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
-    font-family: sans-serif;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent !important; /* Arka plandaki ekstra renkleri zorla kapatır */
+    border: none !important;                  /* Olası tüm dış çizgileri siler */
+    box-shadow: none !important;              /* Eğer kutu gölgesi varsa kaldırır */
 }
 
-/* 📐 Formanın Kolları İçin Ortak Ayarlar (Arkada ve Dikdörtgen) */
-.shirt-sleeve-left, .shirt-sleeve-right {
-    position: absolute;
-    width: 15px; /* Kolların genişliği */
-    height: 20px; /* Kolların yüksekliği */
-    background-color: inherit; /* Takım rengini otomatik alır */
-    z-index: 1; /* 🎯 ÇÖZÜM: Gövdenin (shirt-main) arkasında kalmasını sağlar */
-    top: 3px; /* Kolların omuzdan biraz aşağıdan başlamasını sağlar */
-}
-
-/* 📐 Sol Kolun Pozisyonu ve Açısı (Dışarı ve Aşağı) */
-.shirt-sleeve-left {
-    left: 4px; /* Kolun gövdeden sola doğru açılmasını sağlar */
-    border-radius: 2px 0 0 2px; /* Dış kenarı hafif yumuşatır */
-    
-    /* 🎯 ÇÖZÜM: Kolu görseldeki gibi dışarıya doğru 20 derece döndürür */
-    transform: rotate(-20deg);
-}
-
-/* 📐 Sağ Kolun Pozisyonu ve Açısı (Dışarı ve Aşağı) */
-.shirt-sleeve-right {
-    right: 4px; /* Kolun gövdeden sağa doğru açılmasını sağlar */
-    border-radius: 0 2px 2px 0; /* Dış kenarı hafif yumuşatır */
-    
-    /* 🎯 ÇÖZÜM: Kolu görseldeki gibi dışarıya doğru 20 derece döndürür */
-    transform: rotate(20deg);
-}
-
-/* Kırmızı formayı ve kollarını 180 derece döndürme efekti */
+/* Kırmızı Takım Forması */
 .red-jersey {
-    transform: rotate(180deg);
+    background-image: url('forma-kirmizi.png') !important;
+    background-color: transparent !important;
+    border: none !important;
 }
-/* Kırmızı formanın içindeki sayıların düz okunması için ters çevirme */
+
+/* Beyaz Takım Forması */
+.white-jersey {
+    background-image: url('forma-beyaz.png') !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Kaleci Forması */
+.gk-jersey {
+    background-image: url('forma-gk.png') !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* 🔢 FORMANIN ORTASINDAKİ SAYI YAZISI (GENEL AYARLAR) */
+.shirt-main {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 14px; /* Şu anki yazı boyutun */
+    font-weight: bold;
+    font-family: sans-serif;
+    z-index: 5;
+}
+
+/* 🟥 Kırmızı Takım Sayı Rengi (Beyaz Yazı + Siyah Kontür) */
 .red-jersey .shirt-main {
-    transform: rotate(180deg);
+    color: white !important;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8) !important;
 }
 
-.red-jersey .shirt-main, .red-jersey .shirt-sleeve-left, .red-jersey .shirt-sleeve-right {
-    background-color: #d90429;
-    color: white;
-    border: 1px solid #b30000;
-}
-.white-jersey .shirt-main, .white-jersey .shirt-sleeve-left, .white-jersey .shirt-sleeve-right {
-    background-color: #ffffff;
-    color: #2b2d42;
-    border: 1px solid #ccc;
+/* ⬜ Beyaz Takım Sayı Rengi (Siyah Yazı + Beyaz Kontür) */
+.white-jersey .shirt-main {
+    color: #000000 !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8) !important;
 }
 
-/* Kırmızı kaleci forması da ters dönecek */
-.red-gk { transform: rotate(180deg); }
-.red-gk .shirt-main { transform: rotate(180deg); }
-
-.gk-jersey .shirt-main, .gk-jersey .shirt-sleeve-left, .gk-jersey .shirt-sleeve-right {
-    background-color: #ffb703;
-    color: black;
-    border: 1px solid #fb8500;
+/* 🟨 Kaleci Forması Sayı Rengi (Siyah Yazı + Sarı/Beyaz Kontür) */
+.gk-jersey .shirt-main {
+    color: #000000 !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8) !important;
 }
 
 .player-name {
@@ -403,4 +382,24 @@ h1, h3 {
 .player-list {
     margin-top: 2px !important;
     padding-top: 2px !important;
+}
+
+/* 🏟️ SADECE SAHADAKİ OYUNCU KARTLARI (HAVUZ DIŞINDAKİLER) */
+div:not(.player-list):not(.pool-list) > .player-card { 
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Sadece sahadaki isimlerin arka plan kutusunu büyütür */
+div:not(.player-list):not(.pool-list) > .player-card .player-name {
+    line-height: 1.1 !important;
+    margin-top: -4px !important; 
+    margin-bottom: 0 !important;
+    
+    /* 📐 KUTUYU BÜYÜTMEK İÇİN EKLEDIĞIMIZ AYARLAR: */
+    padding: 3px 8px !important;    /* İlk değer üst-alt boşluk (3px), ikinci değer sağ-sol genişlik (8px) */
+    border-radius: 4px !important;  /* Köşelerin hafif oval/yuvarlak durması için */
+    display: inline-block !important; /* Genişliğin tam uygulanabilmesi için */
 }
