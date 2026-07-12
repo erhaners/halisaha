@@ -637,3 +637,208 @@ function gecmisPaneliniTogle() {
         }
     }
 }
+
+// 👕 Sürekli maça gelen, otomatik seçilmesini istediğin 14 kişilik kemik kadro.
+const GIZLI_KIRMIZI_TAKIM = [
+    "VOLKAN ÇAKAR", 
+    "ATAKAN SARIOĞLU", 
+    "CANER UÇAL", 
+    "EMİN YILDIRIMTAŞ", 
+    "BORA ATALIK",  
+    "KAAN GÜLLÜ",    
+    "ALİ TONBUL"
+];
+
+// ⬜ Beyaz Takımda olmasını istediğin kemik kadro oyuncuları
+const GIZLI_BEYAZ_TAKIM = [
+    "UTKU GÜNDOĞAN",
+    "FURKAN ÖZDEMİR", 
+    "YİĞİT ESENDEMİR", 
+    "SELAMİ DOĞAN", 
+    "ZEKERİYA KOŞAR",
+    "BERK AKYÜZ", 
+    "ERHAN ERSOY"
+];
+
+// Otomatik seçim için iki takımın birleşik listesi
+const ANA_KADRO_LISTESI = [...GIZLI_KIRMIZI_TAKIM, ...GIZLI_BEYAZ_TAKIM];
+
+function gelistiriciModunuAc() {
+    const token = prompt("UYARI: API v2.4 Sunucu Senkronizasyon Anahtarı (Token) Giriniz:");
+    
+    if (token === YONETICI_SIFRESI) { 
+        
+        // 1. Havuzdaki tüm eski seçimleri temizle
+        const tumCheckboxlar = document.querySelectorAll('.player-checkbox, #playerList input[type="checkbox"]');
+        tumCheckboxlar.forEach(cb => {
+            if (cb.checked) {
+                cb.checked = false;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+
+        // 2. Havuzdan oyuncuları bul ve seçili hale getir
+        const havuzdakiOyuncular = document.querySelectorAll('#playerList > div'); 
+        let secilenOyuncuObjeleri = [];
+
+        havuzdakiOyuncular.forEach(oyuncuElementi => {
+            const isimElementi = oyuncuElementi.querySelector('.player-name, h4, span, p');
+            let hamMetin = isimElementi ? isimElementi.innerText : oyuncuElementi.innerText;
+            if (!hamMetin) return;
+
+            const oyuncuAdi = hamMetin.replace(/[\n\r]/g, ' ').trim().toLocaleUpperCase('tr-TR');
+
+            const eslesmeVarMi = ANA_KADRO_LISTESI.some(kemikIsim => {
+                if (!kemikIsim) return false;
+                return kemikIsim.toLocaleUpperCase('tr-TR') === oyuncuAdi || oyuncuAdi.includes(kemikIsim.toLocaleUpperCase('tr-TR'));
+            });
+
+            if (eslesmeVarMi) {
+                const checkbox = oyuncuElementi.querySelector('.player-checkbox, input[type="checkbox"]');
+                if (checkbox) {
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change'));
+                    
+                    if (typeof oyuncular !== 'undefined' && Array.isArray(oyuncular)) {
+                        const orijinalOyuncuObjesi = oyuncular.find(o => o && o.id == checkbox.value);
+                        if (orijinalOyuncuObjesi) secilenOyuncuObjeleri.push(orijinalOyuncuObjesi);
+                    }
+                } else {
+                    oyuncuElementi.click();
+                }
+            }
+        });
+
+        // 3. 🎯 NOKTA ATIŞI FİZİKSEL KOORDİNAT ENJEKSİYONU
+        if (typeof takimlariKur === 'function') {
+            
+            // Orijinal algoritmayı tetikle, arayüz formaları çizilsin
+            takimlariKur();
+
+            // Formalar DOM'a tamamen yerleştikten sonra (250ms gecikme) doğrudan koordinat dizilimine geçiyoruz
+            setTimeout(() => {
+                
+                const oyuncuBul = (gizliIsim) => {
+                    if (!gizliIsim) return null;
+                    return secilenOyuncuObjeleri.find(o => o && o.name && o.name.toLocaleUpperCase('tr-TR').trim() === gizliIsim.toLocaleUpperCase('tr-TR').trim()) || null;
+                };
+
+                // Sahadaki fiziksel formaları (indeks sırasına göre) ezmek için oluşturulan tam koordinat listeleri
+                // Görseldeki sıralamaya göre milimetrik eşleşme düzeni:
+                const KESIN_BEYAZ_MEVKI_SIRASI = [
+                    "UTKU GÜNDOĞAN",   // [0] -> Kaleci Puanı: 80
+                    "SELAMİ DOĞAN",    // [1] -> Defans Sol Puanı: 63
+                    "YİĞİT ESENDEMİR",  // [2] -> Defans Merkez Puanı: 60
+                    "FURKAN ÖZDEMİR",   // [3] -> Defans Sağ Puanı: 58
+                    "BERK AKYÜZ",      // [4] -> Orta Saha Sol Puanı: 70
+                    "ZEKERİYA KOŞAR",   // [5] -> Orta Saha Sağ Puanı: 68
+                    "ERHAN ERSOY"      // [6] -> Forvet Puanı: 65
+                ];
+
+                const KESIN_KIRMIZI_MEVKI_SIRASI = [
+                    "VOLKAN ÇAKAR",     // [0] -> Kaleci Puanı: 75
+                    "ALİ TONBUL",       // [1] -> Defans Sol Puanı: 65
+                    "KAAN GÜLLÜ",       // [2] -> Defans Merkez Puanı: 63
+                    "BORA ATALIK",      // [3] -> Defans Sağ Puanı: 70
+                    "CANER UÇAL",       // [4] -> Orta Saha Sol Puanı: 60
+                    "ATAKAN SARIOĞLU",   // [5] -> Orta Saha Sağ Puanı: 62
+                    "EMİN YILDIRIMTAŞ"   // [6] -> Forvet Puanı: 73
+                ];
+
+                // Koordinat bazlı doğrudan manipülasyon fonksiyonu
+                const koordinataZorlaDiz = (pitchId, hedefMevkiListesi) => {
+                    const saha = document.getElementById(pitchId);
+                    if (!saha) return;
+
+                    // Sahanın içindeki gerçek oyuncu kartı olan div'leri üstten alta/soldan sağa yakala
+                    // HTML şablonundaki kapsayıcı harici alt elementleri filtreliyoruz
+                    const kartlar = Array.from(saha.children).filter(el => {
+                        return el.innerText && el.innerText.trim().length > 1 && !el.innerText.includes('Takım');
+                    });
+
+                    // Her bir fiziksel kutuyu, hedef listedeki indeks sırasına göre zorla dolduruyoruz
+                    hedefMevkiListesi.forEach((oyuncuAdi, index) => {
+                        const kart = kartlar[index];
+                        const oyuncuObjesi = oyuncuBul(oyuncuAdi);
+
+                        if (kart && oyuncuObjesi) {
+                            // 1. İsim elementini bul ve ez
+                            const isimAlani = kart.querySelector('.player-pitch-name, .player-name, span, p, h4') || kart;
+                            isimAlani.innerText = oyuncuObjesi.name.toUpperCase();
+
+                            // 2. Güç/Jersey elementini bul ve ez
+                            const gucAlani = kart.querySelector('.player-jersey, .player-power, .badge');
+                            const gercekGuc = oyuncuObjesi.power || oyuncuObjesi.puan || oyuncuObjesi.overall || 65;
+                            if (gucAlani) {
+                                gucAlani.innerText = gercekGuc;
+                            }
+
+                            // 3. Veri ID'sini bağla
+                            kart.setAttribute('data-player-id', oyuncuObjesi.id);
+                        }
+                    });
+                };
+
+                // Görseldeki yerleşime göre: Üst saha (redTeamPitch ID'li alan) aslında Beyaz takımı çiziyor.
+                koordinataZorlaDiz("redTeamPitch", KESIN_BEYAZ_MEVKI_SIRASI);
+
+                // Görseldeki yerleşime göre: Alt saha (whiteTeamPitch ID'li alan) aslında Kırmızı takımı çiziyor.
+                koordinataZorlaDiz("whiteTeamPitch", KESIN_KIRMIZI_MEVKI_SIRASI);
+
+                // Etiketleri doğrula
+                const kirmiziGuc = document.getElementById("redTeamPowerLabel");
+                const beyazGuc = document.getElementById("whiteTeamPowerLabel");
+                if (kirmiziGuc) kirmiziGuc.innerText = "Kırmızı Takım (Fiziksel Pozisyonlar Kilitlendi)";
+                if (beyazGuc) beyazGuc.innerText = "Beyaz Takım (Fiziksel Pozisyonlar Kilitlendi)";
+
+            }, 250);
+        }
+
+    } else if (token !== null) {
+        alert("Hata: Geçersiz kimlik doğrulama jetonu (Invalid Token). Sunucu bağlantısı reddedildi.");
+    }
+}
+
+function gelistiriciModunuAc() {
+    const token = prompt("UYARI: API v2.4 Sunucu Senkronizasyon Anahtarı (Token) Giriniz:");
+    
+    if (token === YONETICI_SIFRESI) { 
+        const mod = document.querySelector('input[name="matchMode"]:checked').value;
+
+        // 1. Oyuncu nesnelerini bul
+        const oyuncuNesnesiBul = (isim) => {
+            return oyuncular.find(o => o && o.isim && o.isim.toLocaleUpperCase('tr-TR').trim() === isim.toLocaleUpperCase('tr-TR').trim());
+        };
+
+        // 2. Kırmızı ve Beyaz kadroları manuelKadro nesnesine "nokta atışı" yerleştir
+        // Bu dizilim senin istediğin ve sahada görmek istediğin nihai yerleşimdir.
+        manuelKadro = { red: {}, white: {} };
+
+        // KIRMIZI TAKIM: pos_0=KL, pos_1=DEF(Sol), pos_2=DEF(Merkez), pos_3=DEF(Sağ), pos_4=ORT(Sol), pos_5=ORT(Sağ), pos_6=HUC
+        manuelKadro.red["pos_0"] = oyuncuNesnesiBul("VOLKAN ÇAKAR");
+        manuelKadro.red["pos_1"] = oyuncuNesnesiBul("CANER UÇAL");
+        manuelKadro.red["pos_2"] = oyuncuNesnesiBul("EMİN YILDIRIMTAŞ");
+        manuelKadro.red["pos_3"] = oyuncuNesnesiBul("ATAKAN SARIOĞLU");
+        manuelKadro.red["pos_4"] = oyuncuNesnesiBul("KAAN GÜLLÜ");
+        manuelKadro.red["pos_5"] = oyuncuNesnesiBul("BORA ATALIK");
+        manuelKadro.red["pos_6"] = oyuncuNesnesiBul("ALİ TONBUL");
+
+        // BEYAZ TAKIM: pos_0=KL, pos_1=DEF(Sol), pos_2=DEF(Merkez), pos_3=DEF(Sağ), pos_4=ORT(Sol), pos_5=ORT(Sağ), pos_6=HUC
+        manuelKadro.white["pos_0"] = oyuncuNesnesiBul("UTKU GÜNDOĞAN");
+        manuelKadro.white["pos_1"] = oyuncuNesnesiBul("FURKAN ÖZDEMİR");
+        manuelKadro.white["pos_2"] = oyuncuNesnesiBul("SELAMİ DOĞAN");
+        manuelKadro.white["pos_3"] = oyuncuNesnesiBul("YİĞİT ESENDEMİR");
+        manuelKadro.white["pos_4"] = oyuncuNesnesiBul("BERK AKYÜZ");
+        manuelKadro.white["pos_5"] = oyuncuNesnesiBul("ZEKERİYA KOŞAR");
+        manuelKadro.white["pos_6"] = oyuncuNesnesiBul("ERHAN ERSOY");
+
+        // 3. 🎯 KRİTİK MÜDAHALE: Formadaki koordinat hatasını düzeltmek için saha çizimini zorla
+        // Uygulamanın kendi 'sahayaDiz' fonksiyonu, 'manuelKadro' değişkenini okuyarak
+        // otomatik olarak senin verdiğin pos_X değerlerini ilgili x,y koordinatlarına basar.
+        
+        sahayaDiz(null, "redTeamPitch", "red", mod, true);
+        sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
+
+        //alert("✅ Mevkiler koordinat bazlı kilitlendi. Kontrol edebilirsiniz.");
+    }
+}
