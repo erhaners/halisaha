@@ -42,6 +42,27 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (hata) {
         console.error("❌ Firebase başlatılırken KRİTİK HATA oluştu:", hata);
     }
+
+    // 💾 Sayfa Açılışında Hafızadan Yükleme Kontrolü (DOMContentLoaded İçine Alındı)
+    const kayitliKadro = localStorage.getItem('sonKurulanKadro');
+    const kayitliMod = localStorage.getItem('sonMatchMode');
+
+    if (kayitliKadro) {
+        try {
+            manuelKadro = JSON.parse(kayitliKadro);
+            const mod = kayitliMod || document.querySelector('input[name="matchMode"]:checked').value;
+            
+            // Kayıtlı kadroyu sahaya bas
+            sahayaDiz(null, "redTeamPitch", "red", mod, true);
+            sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
+            
+            console.log("💾 Son kurulan kadro hafızadan başarıyla yüklendi.");
+        } catch (e) {
+            console.error("Kayıtlı kadro okunurken hata oluştu:", e);
+            localStorage.removeItem('sonKurulanKadro');
+            localStorage.removeItem('sonMatchMode');
+        }
+    }
 });
 
 function ArayüzElemanlariniHazirla() {
@@ -107,31 +128,6 @@ function veriTabaniniDinle() {
         macGecmisiniDinle();
     });
 }
-
-// 💾 Sayfa Açılışında Hafızadan Yükleme Kontrolü
-window.onload = function() {
-    modDegisti();
-
-    const kayitliKadro = localStorage.getItem('sonKurulanKadro');
-    const kayitliMod = localStorage.getItem('sonMatchMode');
-
-    if (kayitliKadro) {
-        try {
-            manuelKadro = JSON.parse(kayitliKadro);
-            const mod = kayitliMod || document.querySelector('input[name="matchMode"]:checked').value;
-            
-            // Kayıtlı kadroyu sahaya bas
-            sahayaDiz(null, "redTeamPitch", "red", mod, true);
-            sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
-            
-            console.log("💾 Son kurulan kadro hafızadan başarıyla yüklendi.");
-        } catch (e) {
-            console.error("Kayıtlı kadro okunurken hata oluştu:", e);
-            localStorage.removeItem('sonKurulanKadro');
-            localStorage.removeItem('sonMatchMode');
-        }
-    }
-};
 
 function modDegisti() {
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
