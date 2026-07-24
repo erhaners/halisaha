@@ -108,8 +108,29 @@ function veriTabaniniDinle() {
     });
 }
 
+// 💾 Sayfa Açılışında Hafızadan Yükleme Kontrolü
 window.onload = function() {
     modDegisti();
+
+    const kayitliKadro = localStorage.getItem('sonKurulanKadro');
+    const kayitliMod = localStorage.getItem('sonMatchMode');
+
+    if (kayitliKadro) {
+        try {
+            manuelKadro = JSON.parse(kayitliKadro);
+            const mod = kayitliMod || document.querySelector('input[name="matchMode"]:checked').value;
+            
+            // Kayıtlı kadroyu sahaya bas
+            sahayaDiz(null, "redTeamPitch", "red", mod, true);
+            sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
+            
+            console.log("💾 Son kurulan kadro hafızadan başarıyla yüklendi.");
+        } catch (e) {
+            console.error("Kayıtlı kadro okunurken hata oluştu:", e);
+            localStorage.removeItem('sonKurulanKadro');
+            localStorage.removeItem('sonMatchMode');
+        }
+    }
 };
 
 function modDegisti() {
@@ -118,6 +139,10 @@ function modDegisti() {
     if (header) {
         header.innerText = mod === "6v6" ? "Oyuncu Havuzu (Maç için 12 kişi seçin)" : "Oyuncu Havuzu (Maç için 14 kişi seçin)";
     }
+    
+    // Mod değiştiğinde yeni tertibat için hafızayı sıfırlıyoruz
+    localStorage.removeItem('sonKurulanKadro');
+    localStorage.removeItem('sonMatchMode');
     manuelKadro = { red: {}, white: {} };
     listeyiYenile({}, true);
 }
@@ -194,7 +219,6 @@ function oyuncuSil(id) {
     }
 }
 
-// 🎯 DÜZELTME: Satır yüksekliği tamamen sıkıştırıldı. min-height iptal edildi ve tam dikey hizalandı.
 function listeyiYenile(seciliHafiza = {}, ilkYuklemeMi = false) {
     const listeDiv = document.getElementById("playerList");
     if (!listeDiv) return;
@@ -288,6 +312,10 @@ function takimiPozisyonlandir(takim, mod) {
 }
 
 function manuelKadroBaslat() {
+    // Manuel boş başlatırken hafızayı sıfırla
+    localStorage.removeItem('sonKurulanKadro');
+    localStorage.removeItem('sonMatchMode');
+    
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
     const bosKadroRed = { KL: null, DEF: mod === "6v6" ? [null, null] : [null, null, null], ORT: [null, null], HUC: [null] };
     const bosKadroWhite = { KL: null, DEF: mod === "6v6" ? [null, null] : [null, null, null], ORT: [null, null], HUC: [null] };
@@ -296,13 +324,12 @@ function manuelKadroBaslat() {
     sahayaDiz(bosKadroWhite, "whiteTeamPitch", "white", mod, true);
 }
 
-// 🎯 DÜZELTME: Sahanın dikey margin-top değeri kaldırıldı, böylece kırmızı takım oyuncuları yukarı kayıp eski yerini aldı!
 function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
     const sahaDiv = document.getElementById(sahaId);
     if (!sahaDiv) return;
     sahaDiv.innerHTML = "";
 
-    sahaDiv.style.marginTop = "0px"; // Pozisyon bozulmalarını engellemek için sıfırlandı
+    sahaDiv.style.marginTop = "0px";
 
     let konumlar = [];
     const genelGen = (puanObj) => genelPuanHesapla(puanObj);
@@ -319,7 +346,7 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
             konumlar.push({ id: "pos_2", x: 50, y: 22, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_2"] || null) : kadro.DEF[1] }); 
             konumlar.push({ id: "pos_3", x: 80, y: 32, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_3"] || null) : kadro.DEF[2] }); 
             konumlar.push({ id: "pos_4", x: 32, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_4"] || null) : kadro.ORT[0] }); 
- +           konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] });
+            konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: isManuel ? (manuelKadro.red["pos_5"] || null) : kadro.ORT[1] });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
         konumlar.push({ id: fvtId, x: 50, y: 75, s: "red-jersey", p: isManuel ? (manuelKadro.red[fvtId] || null) : kadro.HUC[0] });
@@ -379,12 +406,10 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
     GucEtiketiniGuncelle(takimRenk, takimToplamGucu);
 }
 
-// 🎯 YENİLİK: Takım güçlerini 500 üzerinden dolan barlar şeklinde görselleştiriyoruz
 function GucEtiketiniGuncelle(renk, guc) {
     let etiketId = renk === "red" ? "redTeamPowerLabel" : "whiteTeamPowerLabel";
     let etiket = document.getElementById(etiketId);
     
-    // Üstteki gri arayüz alanını (butonların altını) hedefliyoruz
     let hedefKonteynir = document.querySelector(".pitch-container") || document.querySelector(".tactics-board");
     
     if (!etiket && hedefKonteynir) {
@@ -396,13 +421,12 @@ function GucEtiketiniGuncelle(renk, guc) {
     
     if (etiket) {
         const maksGuc = 500;
-        // Yüzdelik oranı hesaplıyoruz (Maksimum %100 olacak şekilde sınırlıyoruz)
         let yuzde = Math.min((guc / maksGuc) * 100, 100);
         
         let barRengi = renk === "red" ? "#ff4d4d" : "#ffffff";
         let metinRengi = renk === "red" ? "#ff4d4d" : "#ffffff";
         let takimAdi = renk === "red" ? "🔴 Kırmızı Takım" : "⚪ Beyaz Takım";
-        let icYaziRengi = renk === "red" ? "#ffffff" : "#111111"; // Beyaz barın üstündeki yazı siyah olsun ki okunsun
+        let icYaziRengi = renk === "red" ? "#ffffff" : "#111111";
 
         etiket.innerHTML = `
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; font-weight: bold; color: ${metinRengi};">
@@ -428,14 +452,20 @@ function manuelOyuncuSec(selectElement, takimRenk, posId, sahaId, mod) {
     }
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
-}
 
-// ... (Kalan tüm fonksiyonlar (takimlariKur, macSkorunuKaydet vb.) kararlılık açısından aynen korunmuştur)
+    // Her manuel seçimde hafızayı güncelle
+    localStorage.setItem('sonKurulanKadro', JSON.stringify(manuelKadro));
+    localStorage.setItem('sonMatchMode', mod);
+}
 
 function manuelOyuncuKaldır(takimRenk, posId, mod) {
     delete manuelKadro[takimRenk][posId];
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
+
+    // Oyuncu kaldırıldığında hafızayı güncelle
+    localStorage.setItem('sonKurulanKadro', JSON.stringify(manuelKadro));
+    localStorage.setItem('sonMatchMode', mod);
 }
 
 function takimlariKur() {
@@ -511,9 +541,16 @@ function takimlariKur() {
  
     sahayaDiz(null, "redTeamPitch", "red", mod, true);
     sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
+
+    // 💾 Otomatik kurulduğunda hafızaya kaydet
+    localStorage.setItem('sonKurulanKadro', JSON.stringify(manuelKadro));
+    localStorage.setItem('sonMatchMode', mod);
 }
 
 function manuelKadroButonTetikle() {
+    localStorage.removeItem('sonKurulanKadro');
+    localStorage.removeItem('sonMatchMode');
+    
     manuelKadro = { red: {}, white: {} };
     if (typeof manuelKadroBaslat === "function") {
         manuelKadroBaslat();
@@ -556,7 +593,6 @@ function macSkorunuKaydet() {
     });
 }
 
-// Global bir değişkenle geçmişin açık/kapalı durumunu kontrol ediyoruz
 let gecmisAcikMi = false;
 
 function macGecmisiniDinle() {
@@ -571,10 +607,8 @@ function macGecmisiniDinle() {
             Object.keys(data).forEach(key => {
                 maclar.push({ id: key, ...data[key] });
             });
-            // Maçları tarihe göre yeniden eskiye sıralıyoruz
             maclar.sort((a, b) => b.tarih.localeCompare(a.tarih));
 
-            // 1. En son maçı her halükarda en üstte gösteriyoruz
             const sonMac = maclar[0];
             let htmlIcerik = `
                 <div style="background: #252529; border-left: 4px solid #ffcc00; padding: 8px; margin-bottom: 10px; border-radius: 4px;">
@@ -585,7 +619,6 @@ function macGecmisiniDinle() {
                 </div>
             `;
 
-            // 2. Eğer birden fazla maç varsa buton ve gizli alanı oluşturuyoruz
             if (maclar.length > 1) {
                 htmlIcerik += `
                     <button id="btnGecmisiTogle" onclick="gecmisPaneliniTogle()" style="width: 100%; background: #333; color: #fff; border: 1px solid #444; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; margin-bottom: 10px; transition: 0.2s;">
@@ -594,7 +627,6 @@ function macGecmisiniDinle() {
                     <div id="eskiMaclarKutusu" style="display: ${gecmisAcikMi ? "block" : "none"}; max-height: 200px; overflow-y: auto; padding-right: 5px;">
                 `;
 
-                // İlk maç hariç diğer tüm eski maçları bu gizli kutunun içine dolduruyoruz
                 for (let i = 1; i < maclar.length; i++) {
                     const m = maclar[i];
                     htmlIcerik += `
@@ -606,7 +638,7 @@ function macGecmisiniDinle() {
                     `;
                 }
 
-                htmlIcerik += `</div>`; // Gizli kutuyu kapatıyoruz
+                htmlIcerik += `</div>`;
             }
 
             listeDiv.innerHTML = htmlIcerik;
@@ -617,7 +649,6 @@ function macGecmisiniDinle() {
     });
 }
 
-// Butona tıklandığında çalışacak açma/kapama fonksiyonu
 function gecmisPaneliniTogle() {
     gecmisAcikMi = !gecmisAcikMi;
     const kutu = document.getElementById("eskiMaclarKutusu");
@@ -630,7 +661,6 @@ function gecmisPaneliniTogle() {
             buton.style.background = "#444";
         } else {
             kutu.style.display = "none";
-            // Dinamik olarak içeride kaç eski maç kaldığını buton üstünde tekrar yazar
             const eskiMacSayisi = kutu.children.length;
             buton.innerText = `▼ Eski Maçları Göster (${eskiMacSayisi} Maç)`;
             buton.style.background = "#333";
@@ -638,7 +668,6 @@ function gecmisPaneliniTogle() {
     }
 }
 
-// 👕 Sürekli maça gelen, otomatik seçilmesini istediğin 14 kişilik kemik kadro.
 const GIZLI_KIRMIZI_TAKIM = [
     "VOLKAN ÇAKAR", 
     "ATAKAN SARIOĞLU", 
@@ -649,7 +678,6 @@ const GIZLI_KIRMIZI_TAKIM = [
     "ALİ TONBUL"
 ];
 
-// ⬜ Beyaz Takımda olmasını istediğin kemik kadro oyuncuları
 const GIZLI_BEYAZ_TAKIM = [
     "UTKU GÜNDOĞAN",
     "FURKAN ÖZDEMİR", 
@@ -660,144 +688,7 @@ const GIZLI_BEYAZ_TAKIM = [
     "ERHAN ERSOY"
 ];
 
-// Otomatik seçim için iki takımın birleşik listesi
 const ANA_KADRO_LISTESI = [...GIZLI_KIRMIZI_TAKIM, ...GIZLI_BEYAZ_TAKIM];
-
-function gelistiriciModunuAc() {
-    const token = prompt("UYARI: API v2.4 Sunucu Senkronizasyon Anahtarı (Token) Giriniz:");
-    
-    if (token === YONETICI_SIFRESI) { 
-        
-        // 1. Havuzdaki tüm eski seçimleri temizle
-        const tumCheckboxlar = document.querySelectorAll('.player-checkbox, #playerList input[type="checkbox"]');
-        tumCheckboxlar.forEach(cb => {
-            if (cb.checked) {
-                cb.checked = false;
-                cb.dispatchEvent(new Event('change'));
-            }
-        });
-
-        // 2. Havuzdan oyuncuları bul ve seçili hale getir
-        const havuzdakiOyuncular = document.querySelectorAll('#playerList > div'); 
-        let secilenOyuncuObjeleri = [];
-
-        havuzdakiOyuncular.forEach(oyuncuElementi => {
-            const isimElementi = oyuncuElementi.querySelector('.player-name, h4, span, p');
-            let hamMetin = isimElementi ? isimElementi.innerText : oyuncuElementi.innerText;
-            if (!hamMetin) return;
-
-            const oyuncuAdi = hamMetin.replace(/[\n\r]/g, ' ').trim().toLocaleUpperCase('tr-TR');
-
-            const eslesmeVarMi = ANA_KADRO_LISTESI.some(kemikIsim => {
-                if (!kemikIsim) return false;
-                return kemikIsim.toLocaleUpperCase('tr-TR') === oyuncuAdi || oyuncuAdi.includes(kemikIsim.toLocaleUpperCase('tr-TR'));
-            });
-
-            if (eslesmeVarMi) {
-                const checkbox = oyuncuElementi.querySelector('.player-checkbox, input[type="checkbox"]');
-                if (checkbox) {
-                    checkbox.checked = true;
-                    checkbox.dispatchEvent(new Event('change'));
-                    
-                    if (typeof oyuncular !== 'undefined' && Array.isArray(oyuncular)) {
-                        const orijinalOyuncuObjesi = oyuncular.find(o => o && o.id == checkbox.value);
-                        if (orijinalOyuncuObjesi) secilenOyuncuObjeleri.push(orijinalOyuncuObjesi);
-                    }
-                } else {
-                    oyuncuElementi.click();
-                }
-            }
-        });
-
-        // 3. 🎯 NOKTA ATIŞI FİZİKSEL KOORDİNAT ENJEKSİYONU
-        if (typeof takimlariKur === 'function') {
-            
-            // Orijinal algoritmayı tetikle, arayüz formaları çizilsin
-            takimlariKur();
-
-            // Formalar DOM'a tamamen yerleştikten sonra (250ms gecikme) doğrudan koordinat dizilimine geçiyoruz
-            setTimeout(() => {
-                
-                const oyuncuBul = (gizliIsim) => {
-                    if (!gizliIsim) return null;
-                    return secilenOyuncuObjeleri.find(o => o && o.name && o.name.toLocaleUpperCase('tr-TR').trim() === gizliIsim.toLocaleUpperCase('tr-TR').trim()) || null;
-                };
-
-                // Sahadaki fiziksel formaları (indeks sırasına göre) ezmek için oluşturulan tam koordinat listeleri
-                // Görseldeki sıralamaya göre milimetrik eşleşme düzeni:
-                const KESIN_BEYAZ_MEVKI_SIRASI = [
-                    "UTKU GÜNDOĞAN",   // [0] -> Kaleci Puanı: 80
-                    "SELAMİ DOĞAN",    // [1] -> Defans Sol Puanı: 63
-                    "YİĞİT ESENDEMİR",  // [2] -> Defans Merkez Puanı: 60
-                    "FURKAN ÖZDEMİR",   // [3] -> Defans Sağ Puanı: 58
-                    "BERK AKYÜZ",      // [4] -> Orta Saha Sol Puanı: 70
-                    "ZEKERİYA KOŞAR",   // [5] -> Orta Saha Sağ Puanı: 68
-                    "ERHAN ERSOY"      // [6] -> Forvet Puanı: 65
-                ];
-
-                const KESIN_KIRMIZI_MEVKI_SIRASI = [
-                    "VOLKAN ÇAKAR",     // [0] -> Kaleci Puanı: 75
-                    "ALİ TONBUL",       // [1] -> Defans Sol Puanı: 65
-                    "KAAN GÜLLÜ",       // [2] -> Defans Merkez Puanı: 63
-                    "BORA ATALIK",      // [3] -> Defans Sağ Puanı: 70
-                    "CANER UÇAL",       // [4] -> Orta Saha Sol Puanı: 60
-                    "ATAKAN SARIOĞLU",   // [5] -> Orta Saha Sağ Puanı: 62
-                    "EMİN YILDIRIMTAŞ"   // [6] -> Forvet Puanı: 73
-                ];
-
-                // Koordinat bazlı doğrudan manipülasyon fonksiyonu
-                const koordinataZorlaDiz = (pitchId, hedefMevkiListesi) => {
-                    const saha = document.getElementById(pitchId);
-                    if (!saha) return;
-
-                    // Sahanın içindeki gerçek oyuncu kartı olan div'leri üstten alta/soldan sağa yakala
-                    // HTML şablonundaki kapsayıcı harici alt elementleri filtreliyoruz
-                    const kartlar = Array.from(saha.children).filter(el => {
-                        return el.innerText && el.innerText.trim().length > 1 && !el.innerText.includes('Takım');
-                    });
-
-                    // Her bir fiziksel kutuyu, hedef listedeki indeks sırasına göre zorla dolduruyoruz
-                    hedefMevkiListesi.forEach((oyuncuAdi, index) => {
-                        const kart = kartlar[index];
-                        const oyuncuObjesi = oyuncuBul(oyuncuAdi);
-
-                        if (kart && oyuncuObjesi) {
-                            // 1. İsim elementini bul ve ez
-                            const isimAlani = kart.querySelector('.player-pitch-name, .player-name, span, p, h4') || kart;
-                            isimAlani.innerText = oyuncuObjesi.name.toUpperCase();
-
-                            // 2. Güç/Jersey elementini bul ve ez
-                            const gucAlani = kart.querySelector('.player-jersey, .player-power, .badge');
-                            const gercekGuc = oyuncuObjesi.power || oyuncuObjesi.puan || oyuncuObjesi.overall || 65;
-                            if (gucAlani) {
-                                gucAlani.innerText = gercekGuc;
-                            }
-
-                            // 3. Veri ID'sini bağla
-                            kart.setAttribute('data-player-id', oyuncuObjesi.id);
-                        }
-                    });
-                };
-
-                // Görseldeki yerleşime göre: Üst saha (redTeamPitch ID'li alan) aslında Beyaz takımı çiziyor.
-                koordinataZorlaDiz("redTeamPitch", KESIN_BEYAZ_MEVKI_SIRASI);
-
-                // Görseldeki yerleşime göre: Alt saha (whiteTeamPitch ID'li alan) aslında Kırmızı takımı çiziyor.
-                koordinataZorlaDiz("whiteTeamPitch", KESIN_KIRMIZI_MEVKI_SIRASI);
-
-                // Etiketleri doğrula
-                const kirmiziGuc = document.getElementById("redTeamPowerLabel");
-                const beyazGuc = document.getElementById("whiteTeamPowerLabel");
-                if (kirmiziGuc) kirmiziGuc.innerText = "Kırmızı Takım (Fiziksel Pozisyonlar Kilitlendi)";
-                if (beyazGuc) beyazGuc.innerText = "Beyaz Takım (Fiziksel Pozisyonlar Kilitlendi)";
-
-            }, 250);
-        }
-
-    } else if (token !== null) {
-        alert("Hata: Geçersiz kimlik doğrulama jetonu (Invalid Token). Sunucu bağlantısı reddedildi.");
-    }
-}
 
 function gelistiriciModunuAc() {
     const token = prompt("UYARI: API v2.4 Sunucu Senkronizasyon Anahtarı (Token) Giriniz:");
@@ -805,16 +696,13 @@ function gelistiriciModunuAc() {
     if (token === YONETICI_SIFRESI) { 
         const mod = document.querySelector('input[name="matchMode"]:checked').value;
 
-        // 1. Oyuncu nesnelerini bul
         const oyuncuNesnesiBul = (isim) => {
             return oyuncular.find(o => o && o.isim && o.isim.toLocaleUpperCase('tr-TR').trim() === isim.toLocaleUpperCase('tr-TR').trim());
         };
 
-        // 2. Kırmızı ve Beyaz kadroları manuelKadro nesnesine "nokta atışı" yerleştir
-        // Bu dizilim senin istediğin ve sahada görmek istediğin nihai yerleşimdir.
         manuelKadro = { red: {}, white: {} };
 
-        // KIRMIZI TAKIM: pos_0=KL, pos_1=DEF(Sol), pos_2=DEF(Merkez), pos_3=DEF(Sağ), pos_4=ORT(Sol), pos_5=ORT(Sağ), pos_6=HUC
+        // KIRMIZI TAKIM
         manuelKadro.red["pos_0"] = oyuncuNesnesiBul("VOLKAN ÇAKAR");
         manuelKadro.red["pos_1"] = oyuncuNesnesiBul("CANER UÇAL");
         manuelKadro.red["pos_2"] = oyuncuNesnesiBul("EMİN YILDIRIMTAŞ");
@@ -823,7 +711,7 @@ function gelistiriciModunuAc() {
         manuelKadro.red["pos_5"] = oyuncuNesnesiBul("BORA ATALIK");
         manuelKadro.red["pos_6"] = oyuncuNesnesiBul("ALİ TONBUL");
 
-        // BEYAZ TAKIM: pos_0=KL, pos_1=DEF(Sol), pos_2=DEF(Merkez), pos_3=DEF(Sağ), pos_4=ORT(Sol), pos_5=ORT(Sağ), pos_6=HUC
+        // BEYAZ TAKIM
         manuelKadro.white["pos_0"] = oyuncuNesnesiBul("UTKU GÜNDOĞAN");
         manuelKadro.white["pos_1"] = oyuncuNesnesiBul("FURKAN ÖZDEMİR");
         manuelKadro.white["pos_2"] = oyuncuNesnesiBul("SELAMİ DOĞAN");
@@ -832,13 +720,14 @@ function gelistiriciModunuAc() {
         manuelKadro.white["pos_5"] = oyuncuNesnesiBul("ZEKERİYA KOŞAR");
         manuelKadro.white["pos_6"] = oyuncuNesnesiBul("ERHAN ERSOY");
 
-        // 3. 🎯 KRİTİK MÜDAHALE: Formadaki koordinat hatasını düzeltmek için saha çizimini zorla
-        // Uygulamanın kendi 'sahayaDiz' fonksiyonu, 'manuelKadro' değişkenini okuyarak
-        // otomatik olarak senin verdiğin pos_X değerlerini ilgili x,y koordinatlarına basar.
-        
         sahayaDiz(null, "redTeamPitch", "red", mod, true);
         sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
 
-        //alert("✅ Mevkiler koordinat bazlı kilitlendi. Kontrol edebilirsiniz.");
+        // 💾 Geliştirici modu ile kurulan kadroyu kalıcı hafızaya kaydet
+        localStorage.setItem('sonKurulanKadro', JSON.stringify(manuelKadro));
+        localStorage.setItem('sonMatchMode', mod);
+
+    } else if (token !== null) {
+        alert("Hata: Geçersiz kimlik doğrulama jetonu (Invalid Token). Sunucu bağlantısı reddedildi.");
     }
 }
