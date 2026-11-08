@@ -314,10 +314,10 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 
 const client = new Client({
   authStrategy: new RemoteAuth({
-    clientId: "halisaha",
+    clientId: "halisaha-bot",
     dataPath: process.cwd(),
     store: mongoStore,
-    backupSyncIntervalMs: 5 * 60 * 1000,
+    backupSyncIntervalMs: 600000,
   }),
   puppeteer: {
     headless: isRender ? true : "new",
@@ -366,7 +366,7 @@ client.on("authenticated", () => {
 });
 
 client.on("remote_session_saved", () => {
-  console.log("✅ WhatsApp oturum yedeği MongoDB GridFS'e kaydedildi.");
+  console.log("🎉 Oturum yedeği MongoDB Atlas veritabanına başarıyla kilitlendi!");
 });
 
 client.on("ready", async () => {
@@ -448,13 +448,46 @@ client.on("auth_failure", async (msg) => {
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
   });
-  await mongoStore.delete({ session: "RemoteAuth-halisaha" }).catch((error) => {
+  await mongoStore.delete({ session: "RemoteAuth-halisaha-bot" }).catch((error) => {
     console.error("❌ Geçersiz WhatsApp oturumu MongoDB'den silinemedi:", error);
   });
   await botDurumunuKaydet("DISCONNECTED").catch((error) => {
     console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
   });
 });
+
+let reconnectTimer = null;
+let reconnectInProgress = false;
+
+function yenidenBaglanmayiPlanla() {
+  if (reconnectTimer || reconnectInProgress) return;
+
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = null;
+    reconnectInProgress = true;
+    let retryNeeded = false;
+
+    try {
+      if (mongoose.connection.readyState !== 1) {
+        await mongoose.connect(process.env.MONGODB_URI);
+        console.log("✅ MongoDB Atlas bağlantısı yeniden kuruldu.");
+      }
+
+      await client.destroy();
+      await client.initialize();
+      console.log("🔄 WhatsApp istemcisi yeniden başlatıldı.");
+    } catch (error) {
+      retryNeeded = true;
+      console.error("❌ WhatsApp yeniden başlatılamadı:", error);
+      await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
+        console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
+      });
+    } finally {
+      reconnectInProgress = false;
+      if (retryNeeded) yenidenBaglanmayiPlanla();
+    }
+  }, 5000);
+}
 
 client.on("disconnected", async (reason) => {
   console.log("⚠️ WhatsApp bağlantısı koptu:", reason);
@@ -464,6 +497,7 @@ client.on("disconnected", async (reason) => {
   await botDurumunuKaydet("DISCONNECTED").catch((error) => {
     console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
   });
+  yenidenBaglanmayiPlanla();
 });
 
 async function botHatasindaDurumuBildirVeCik() {
