@@ -14,9 +14,12 @@ const VARSAYILAN_OYUNCU = {
 const express = require("express");
 const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
-const { Client, LocalAuth } = require("whatsapp-web.js");
+const { Client, RemoteAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
 const { getDatabase, ref, get, set, remove } = require("firebase/database");
+const fs = require("node:fs/promises");
+const path = require("node:path");
+const { createCipheriv, createDecipheriv, randomBytes } = require("node:crypto");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -34,6 +37,110 @@ const firebaseConfig = {
 
 const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const database = getDatabase(firebaseApp);
+const whatsappAuthDataPath = path.resolve("./.wwebjs_auth");
+
+class FirebaseStore {
+  constructor(databaseInstance, dataPath, encryptionKey) {
+    if (!/^[\da-f]{64}$/i.test(encryptionKey || "")) {
+      throw new Error(
+        "WHATSAPP_SESSION_ENCRYPTION_KEY ortam değişkeni 32 byte'lık (64 karakter hex) bir anahtar olmalıdır.",
+      );
+    }
+
+    this.database = databaseInstance;
+    this.dataPath = dataPath;
+    this.encryptionKey = Buffer.from(encryptionKey, "hex");
+  }
+
+  sessionRef(session) {
+    return ref(this.database, `sistem_hafizasi/whatsapp_session/${session}`);
+  }
+
+  archivePath(session) {
+    const archivePath = path.resolve(this.dataPath, `${session}.zip`);
+    if (path.dirname(archivePath) !== this.dataPath) {
+      throw new Error("Geçersiz WhatsApp oturum adı.");
+    }
+    return archivePath;
+  }
+
+  validateArchiveRecord(record) {
+    if (
+      !record ||
+      record.version !== 1 ||
+      record.algorithm !== "aes-256-gcm" ||
+      !/^[\da-z+/]+=*$/i.test(record.iv || "") ||
+      !/^[\da-z+/]+=*$/i.test(record.authTag || "") ||
+      !Array.isArray(record.chunks) ||
+      record.chunks.length === 0 ||
+      !record.chunks.every((chunk) => typeof chunk === "string" && /^[\da-z+/]+=*$/i.test(chunk))
+    ) {
+      throw new Error("Firebase'deki WhatsApp oturum arşivinin biçimi geçersiz.");
+    }
+  }
+
+  async sessionExists({ session }) {
+    const snapshot = await get(this.sessionRef(session));
+    if (!snapshot.exists()) return false;
+    this.validateArchiveRecord(snapshot.val());
+    return true;
+  }
+
+  async save({ session }) {
+    const archive = await fs.readFile(this.archivePath(session));
+    const iv = randomBytes(12);
+    const cipher = createCipheriv("aes-256-gcm", this.encryptionKey, iv);
+    const encryptedArchive = Buffer.concat([cipher.update(archive), cipher.final()]);
+    const chunks = [];
+    const chunkSize = 512 * 1024;
+
+    for (let offset = 0; offset < encryptedArchive.length; offset += chunkSize) {
+      chunks.push(encryptedArchive.subarray(offset, offset + chunkSize).toString("base64"));
+    }
+
+    await set(this.sessionRef(session), {
+      version: 1,
+      algorithm: "aes-256-gcm",
+      iv: iv.toString("base64"),
+      authTag: cipher.getAuthTag().toString("base64"),
+      chunks,
+    });
+  }
+
+  async extract({ session, path: archivePath }) {
+    const snapshot = await get(this.sessionRef(session));
+    if (!snapshot.exists()) {
+      throw new Error(`Firebase'de '${session}' WhatsApp oturumu bulunamadı.`);
+    }
+
+    const record = snapshot.val();
+    this.validateArchiveRecord(record);
+    const decipher = createDecipheriv(
+      "aes-256-gcm",
+      this.encryptionKey,
+      Buffer.from(record.iv, "base64"),
+    );
+    decipher.setAuthTag(Buffer.from(record.authTag, "base64"));
+    const encryptedArchive = Buffer.concat(record.chunks.map((chunk) => Buffer.from(chunk, "base64")));
+    const archive = Buffer.concat([
+      decipher.update(encryptedArchive),
+      decipher.final(),
+    ]);
+
+    await fs.mkdir(path.dirname(archivePath), { recursive: true });
+    await fs.writeFile(archivePath, archive, { mode: 0o600 });
+  }
+
+  async delete({ session }) {
+    await remove(this.sessionRef(session));
+  }
+}
+
+const firebaseStore = new FirebaseStore(
+  database,
+  whatsappAuthDataPath,
+  process.env.WHATSAPP_SESSION_ENCRYPTION_KEY,
+);
 
 async function botDurumunuKaydet(durum) {
   await set(ref(database, "sistem_hafizasi/bot_durum"), durum);
@@ -310,7 +417,12 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 }
 
 const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: "./whatsapp-session" }),
+  authStrategy: new RemoteAuth({
+    clientId: "halisaha",
+    dataPath: whatsappAuthDataPath,
+    store: firebaseStore,
+    backupSyncIntervalMs: 5 * 60 * 1000,
+  }),
   puppeteer: {
     headless: isRender ? true : "new",
     executablePath: isRender
@@ -351,6 +463,14 @@ client.on("qr", async (qr) => {
       console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
     });
   }
+});
+
+client.on("authenticated", () => {
+  console.log("✅ WhatsApp kimlik doğrulandı; kalıcı Firebase oturum yedeği bağlantı hazır olunca alınacak.");
+});
+
+client.on("remote_session_saved", () => {
+  console.log("✅ Şifreli WhatsApp oturum yedeği Firebase'e kaydedildi.");
 });
 
 client.on("ready", async () => {
@@ -432,6 +552,9 @@ client.on("auth_failure", async (msg) => {
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
   });
+  await firebaseStore.delete({ session: "RemoteAuth-halisaha" }).catch((error) => {
+    console.error("❌ Geçersiz WhatsApp oturumu Firebase'den silinemedi:", error);
+  });
   await botDurumunuKaydet("DISCONNECTED").catch((error) => {
     console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
   });
@@ -468,16 +591,22 @@ process.on("unhandledRejection", (reason) => {
 });
 
 async function botuBaslat() {
-  try {
-    await canliQrKodunuTemizle();
-    await botDurumunuKaydet("DISCONNECTED");
-    await client.initialize();
-  } catch (error) {
-    console.error("❌ WhatsApp bot başlatılamadı:", error);
-    await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
-      console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
-    });
-    process.exitCode = 1;
+  while (true) {
+    try {
+      await canliQrKodunuTemizle();
+      await botDurumunuKaydet("DISCONNECTED");
+      await client.initialize();
+      return;
+    } catch (error) {
+      console.error("❌ WhatsApp bot başlatılamadı; 5 saniye sonra yeniden denenecek:", error);
+      await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
+        console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
+      });
+      await client.destroy().catch((temizlemeHatasi) => {
+        console.error("❌ WhatsApp istemcisi yeniden başlatma öncesi kapatılamadı:", temizlemeHatasi);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+    }
   }
 }
 

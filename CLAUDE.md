@@ -111,6 +111,13 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 ```
 
+### 3.4 WhatsApp uzaktan oturum yedeği
+
+- `whatsapp-bot.js`, `RemoteAuth` ile oturum arşivini `sistem_hafizasi/whatsapp_session` altında saklar.
+- Arşiv AES-256-GCM ile şifrelenir. Render ortamında `WHATSAPP_SESSION_ENCRYPTION_KEY` adında, 64 karakterlik hex biçiminde 32 byte bir environment variable tanımlanmalıdır. Anahtarı güvenli bir yerde üretin ve yalnızca Render secret ayarlarında saklayın; kaynak koda veya Firebase'e yazmayın.
+- Güvenli anahtar üretmek için `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` komutu kullanılabilir. Yeniden başlatmalarda aynı anahtar korunmalıdır; değiştirilmesi kayıtlı oturum yedeğinin çözülememesine neden olur.
+- İlk RemoteAuth bağlantısı için Firebase'de daha önce yedek yoksa QR bir kez taratılır. Oturum yedeği WhatsApp bağlantısı hazır olduktan sonra alınır; sonraki yeniden başlatmalar bu yedeği kullanır.
+
 ## 4) Uygulama Mantığına Genel Bakış
 
 ### 4.1 Oyuncu yönetimi
