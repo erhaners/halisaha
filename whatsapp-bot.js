@@ -19,6 +19,7 @@ const { getDatabase, ref, get, set } = require("firebase/database");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const isRender = process.env.RENDER === "true" || process.env.PORT !== undefined;
 let currentQrCode = "";
 
 const firebaseConfig = {
@@ -300,8 +301,8 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 const client = new Client({
   authStrategy: new LocalAuth({ dataPath: "./whatsapp-session" }),
   puppeteer: {
-    headless: "new",
-    executablePath: 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    headless: isRender ? true : "new",
+    executablePath: isRender ? null : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     protocolTimeout: 60000,
     args: [
       "--no-sandbox",
