@@ -22,7 +22,10 @@ const { getDatabase, ref, get, set, remove } = require("firebase/database");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const isRender = process.env.RENDER === "true";
+const isRender =
+  process.env.PORT !== undefined ||
+  process.env.RENDER === "true" ||
+  process.platform === "linux";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
@@ -478,6 +481,7 @@ function yenidenBaglanmayiPlanla() {
       console.log("🔄 WhatsApp istemcisi yeniden başlatıldı.");
     } catch (error) {
       retryNeeded = true;
+      console.error("❌ BULUTTA BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp yeniden başlatılamadı:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
         console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
@@ -542,6 +546,7 @@ async function botuBaslat() {
       await client.initialize();
       return;
     } catch (error) {
+      console.error("❌ BULUTTA BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp bot başlatılamadı; 5 saniye sonra yeniden denenecek:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
         console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
