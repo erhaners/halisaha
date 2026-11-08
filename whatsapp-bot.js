@@ -11,12 +11,15 @@ const VARSAYILAN_OYUNCU = {
   anaTakim: "Yok",
 };
 
+const express = require("express");
 const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
 const { getDatabase, ref, get, set, remove } = require("firebase/database");
 
+const app = express();
+const PORT = process.env.PORT || 10000;
 const isRender = process.env.RENDER === "true";
 
 const firebaseConfig = {
@@ -477,5 +480,13 @@ async function botuBaslat() {
     process.exitCode = 1;
   }
 }
+
+app.get("/", (req, res) => {
+  res.send("Halisaha Bot Arka Planda Aktif!");
+});
+
+app.listen(PORT, () => {
+  console.log(`Render port köprüsü aktif: ${PORT}`);
+});
 
 botuBaslat();
