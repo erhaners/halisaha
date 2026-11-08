@@ -13,6 +13,7 @@ const VARSAYILAN_OYUNCU = {
 
 const express = require("express");
 const qrcode = require("qrcode-terminal");
+const QRCode = require("qrcode");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
 const { getDatabase, ref, get, set } = require("firebase/database");
@@ -20,7 +21,7 @@ const { getDatabase, ref, get, set } = require("firebase/database");
 const app = express();
 const PORT = process.env.PORT || 3000;
 const isRender = process.env.RENDER === "true" || process.env.PORT !== undefined;
-let currentQrCode = "";
+let latestQr = null;
 
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
@@ -321,6 +322,19 @@ const client = new Client({
   },
 });
 
+app.get("/qr", async (req, res) => {
+  if (!latestQr) {
+    return res.status(404).send("QR kod şu anda mevcut değil.");
+  }
+
+  const qrImage = await QRCode.toBuffer(latestQr, {
+    type: "png",
+    width: 300,
+    margin: 2,
+  });
+  res.set("Cache-Control", "no-store").type("png").send(qrImage);
+});
+
 app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
@@ -328,6 +342,7 @@ app.get("/", (req, res) => {
     <head>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta http-equiv="refresh" content="5" />
       <title>WhatsApp QR</title>
       <style>
         body {
@@ -372,10 +387,12 @@ app.get("/", (req, res) => {
     </head>
     <body>
       <div class="card">
-        <h1>WhatsApp QR Kodu</h1>
-        <p>Telefonunuzdan bu QR kodunu taratın.</p>
+        <h1>🏆 Halısaha Botu Canlı Giriş Ekranı</h1>
+        <p>${latestQr
+          ? "WhatsApp → Bağlı Cihazlar bölümünden QR kodunu taratın."
+          : "Bot WhatsApp'a bağlanmaya çalışıyor veya zaten bağlı. QR kod bekleniyor..."}</p>
         <div class="qr-box">
-          ${currentQrCode ? `<img src="data:image/png;base64,${currentQrCode}" alt="WhatsApp QR" />` : `<p>QR kod bekleniyor...</p>`}
+          ${latestQr ? `<img src="/qr" alt="WhatsApp QR" />` : `<p>Bağlantı durumu 5 saniyede bir yenilenir.</p>`}
         </div>
       </div>
     </body>
@@ -384,12 +401,13 @@ app.get("/", (req, res) => {
 });
 
 client.on("qr", (qr) => {
-  currentQrCode = qr;
+  latestQr = qr;
   console.log("QR kod üretildi. Telefonunuzdan taratın:");
   qrcode.generate(qr, { small: true });
 });
 
 client.on("ready", () => {
+  latestQr = null;
   console.log("✅ WhatsApp bot hazır. Grup mesajları dinleniyor...");
 });
 
