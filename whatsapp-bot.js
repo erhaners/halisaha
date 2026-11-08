@@ -303,13 +303,14 @@ const client = new Client({
   puppeteer: {
     headless: isRender ? true : "new",
     executablePath: isRender
-      ? '/usr/bin/google-chrome-stable'
+      ? null
       : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     protocolTimeout: 60000,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-extensions",
+      "--disable-accelerated-2d-canvas",
       "--disable-gpu",
       "--no-first-run",
       "--no-default-browser-check",
