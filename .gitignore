@@ -2,6 +2,9 @@
 .wwebjs_cache/
 whatsapp-session/
 .wwebjs_auth/
+RemoteAuth-*/
+RemoteAuth-*.zip
+wwebjs_temp_session_*/
 .env
 .DS_Store
 npm-debug.log*
