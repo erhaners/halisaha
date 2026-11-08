@@ -302,7 +302,9 @@ const client = new Client({
   authStrategy: new LocalAuth({ dataPath: "./whatsapp-session" }),
   puppeteer: {
     headless: isRender ? true : "new",
-    executablePath: isRender ? null : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    executablePath: isRender
+      ? '/usr/bin/google-chrome-stable'
+      : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     protocolTimeout: 60000,
     args: [
       "--no-sandbox",
