@@ -20,6 +20,9 @@ let oyuncular = [];
 let duzenlenenId = null;
 let manuelKadro = { red: {}, white: {} };
 let ilkKadroYuklendiMi = false;
+let botDurumu = null;
+let botQrKodu = null;
+let botQrGorseli = null;
 
 function mevkiKoduNormallestir(mevki) {
     const kod = String(mevki || "").trim().toLocaleUpperCase("tr-TR");
@@ -47,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         veriTabaniniDinle();
         canliKadroDinleyicisiniBaslat(); 
+        botBaglantisiniDinle();
         modDegisti();
         
     } catch (hata) {
@@ -161,6 +165,65 @@ function canliKadroDinleyicisiniBaslat() {
                 sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
             }
         }
+    });
+}
+
+function botBaglantisiniDinle() {
+    const durumAlani = document.getElementById("botConnectionStatus");
+    const qrResmi = document.getElementById("botQrImage");
+    const qrYardim = document.getElementById("botQrHelp");
+
+    if (!durumAlani || !qrResmi || !qrYardim) return;
+
+    const paneliGuncelle = () => {
+        qrResmi.hidden = true;
+        qrYardim.hidden = true;
+        qrResmi.removeAttribute("src");
+
+        if (botDurumu === "CONNECTED") {
+            durumAlani.textContent = "✅ Bot Canlı ve Grupları Dinliyor";
+            return;
+        }
+
+        if (botQrKodu) {
+            if (botQrGorseli) {
+                durumAlani.textContent = "📱 WhatsApp bağlantısı için QR kodunu taratın.";
+                qrResmi.src = botQrGorseli;
+                qrResmi.hidden = false;
+                qrYardim.hidden = false;
+            } else {
+                durumAlani.textContent = "⏳ WhatsApp QR kodu hazırlanıyor...";
+            }
+            return;
+        }
+
+        durumAlani.textContent = botDurumu === "DISCONNECTED"
+            ? "🔴 Bot bağlantısı kesildi veya çevrimdışı."
+            : "⏳ Bot durumu bekleniyor...";
+    };
+
+    database.ref("sistem_hafizasi/canli_qr").on("value", (snapshot) => {
+        botQrKodu = snapshot.val();
+        paneliGuncelle();
+    }, (error) => {
+        console.error("❌ Bot QR kodu Firebase'den okunamadı:", error);
+        durumAlani.textContent = "⚠️ Bot QR kodu okunamadı.";
+    });
+
+    database.ref("sistem_hafizasi/canli_qr_gorsel").on("value", (snapshot) => {
+        botQrGorseli = snapshot.val();
+        paneliGuncelle();
+    }, (error) => {
+        console.error("❌ Bot QR görseli Firebase'den okunamadı:", error);
+        durumAlani.textContent = "⚠️ Bot QR görseli okunamadı.";
+    });
+
+    database.ref("sistem_hafizasi/bot_durum").on("value", (snapshot) => {
+        botDurumu = snapshot.val();
+        paneliGuncelle();
+    }, (error) => {
+        console.error("❌ Bot bağlantı durumu Firebase'den okunamadı:", error);
+        durumAlani.textContent = "⚠️ Bot bağlantı durumu okunamadı.";
     });
 }
 

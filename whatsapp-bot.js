@@ -11,17 +11,13 @@ const VARSAYILAN_OYUNCU = {
   anaTakim: "Yok",
 };
 
-const express = require("express");
 const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
-const { getDatabase, ref, get, set } = require("firebase/database");
+const { getDatabase, ref, get, set, remove } = require("firebase/database");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const isRender = process.env.RENDER === "true" || process.env.PORT !== undefined;
-let latestQr = null;
+const isRender = process.env.RENDER === "true";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
@@ -35,6 +31,17 @@ const firebaseConfig = {
 
 const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const database = getDatabase(firebaseApp);
+
+async function botDurumunuKaydet(durum) {
+  await set(ref(database, "sistem_hafizasi/bot_durum"), durum);
+}
+
+async function canliQrKodunuTemizle() {
+  await Promise.all([
+    remove(ref(database, "sistem_hafizasi/canli_qr")),
+    remove(ref(database, "sistem_hafizasi/canli_qr_gorsel")),
+  ]);
+}
 
 function temizleIsim(raw) {
   if (raw === null || raw === undefined) return "";
@@ -326,97 +333,31 @@ const client = new Client({
   },
 });
 
-app.get("/qr", async (req, res) => {
-  if (!latestQr) {
-    return res.status(404).send("QR kod şu anda mevcut değil.");
-  }
-
-  const qrImage = await QRCode.toBuffer(latestQr, {
-    type: "png",
-    width: 300,
-    margin: 2,
-  });
-  res.set("Cache-Control", "no-store").type("png").send(qrImage);
-});
-
-app.get("/", (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="tr">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <meta http-equiv="refresh" content="5" />
-      <title>WhatsApp QR</title>
-      <style>
-        body {
-          margin: 0;
-          background: #111827;
-          color: white;
-          font-family: Arial, sans-serif;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-        }
-        .card {
-          background: #1f2937;
-          padding: 24px;
-          border-radius: 18px;
-          box-shadow: 0 12px 30px rgba(0,0,0,0.35);
-          text-align: center;
-          width: min(90vw, 420px);
-        }
-        h1 {
-          margin-top: 0;
-          font-size: 22px;
-        }
-        .qr-box {
-          background: white;
-          padding: 18px;
-          border-radius: 12px;
-          display: inline-block;
-          margin-top: 14px;
-        }
-        img {
-          display: block;
-          width: 220px;
-          height: 220px;
-        }
-        p {
-          color: #d1d5db;
-          font-size: 14px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <h1>🏆 Halısaha Botu Canlı Giriş Ekranı</h1>
-        <p>${latestQr
-          ? "WhatsApp → Bağlı Cihazlar bölümünden QR kodunu taratın."
-          : "Bot WhatsApp'a bağlanmaya çalışıyor veya zaten bağlı. QR kod bekleniyor..."}</p>
-        <div class="qr-box">
-          ${latestQr ? `<img src="/qr" alt="WhatsApp QR" />` : `<p>Bağlantı durumu 5 saniyede bir yenilenir.</p>`}
-        </div>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-client.on("qr", (qr) => {
-  latestQr = qr;
+client.on("qr", async (qr) => {
   console.log("QR kod üretildi. Telefonunuzdan taratın:");
   qrcode.generate(qr, { small: true });
+
+  try {
+    const qrGorseli = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+    await set(ref(database, "sistem_hafizasi/canli_qr_gorsel"), qrGorseli);
+    await set(ref(database, "sistem_hafizasi/canli_qr"), qr);
+    await botDurumunuKaydet("DISCONNECTED");
+  } catch (error) {
+    console.error("❌ QR kodu Firebase'e yazılamadı:", error);
+    await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
+      console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
+    });
+  }
 });
 
-client.on("ready", () => {
-  latestQr = null;
+client.on("ready", async () => {
+  try {
+    await canliQrKodunuTemizle();
+    await botDurumunuKaydet("CONNECTED");
+  } catch (error) {
+    console.error("❌ Bot bağlantı durumu Firebase'e yazılamadı:", error);
+  }
   console.log("✅ WhatsApp bot hazır. Grup mesajları dinleniyor...");
-});
-
-app.listen(PORT, () => {
-  console.log(`🌐 QR sayfası http://localhost:${PORT} adresinde çalışıyor.`);
 });
 
 async function mesajıIsle(msg) {
@@ -483,12 +424,58 @@ ${yedekMesaji || "Yedek oyuncu yok"}
 client.on("message", mesajıIsle);
 client.on("message_create", mesajıIsle);
 
-client.on("auth_failure", (msg) => {
+client.on("auth_failure", async (msg) => {
   console.error("❌ WhatsApp kimlik doğrulama hatası:", msg);
+  await canliQrKodunuTemizle().catch((error) => {
+    console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
+  });
+  await botDurumunuKaydet("DISCONNECTED").catch((error) => {
+    console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
+  });
 });
 
-client.on("disconnected", (reason) => {
+client.on("disconnected", async (reason) => {
   console.log("⚠️ WhatsApp bağlantısı koptu:", reason);
+  await canliQrKodunuTemizle().catch((error) => {
+    console.error("❌ QR kodu Firebase'den temizlenemedi:", error);
+  });
+  await botDurumunuKaydet("DISCONNECTED").catch((error) => {
+    console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
+  });
 });
 
-client.initialize();
+async function botHatasindaDurumuBildirVeCik() {
+  await canliQrKodunuTemizle().catch((error) => {
+    console.error("❌ QR kodu Firebase'den temizlenemedi:", error);
+  });
+  await botDurumunuKaydet("DISCONNECTED").catch((error) => {
+    console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
+  });
+  process.exit(1);
+}
+
+process.on("uncaughtException", (error) => {
+  console.error("❌ Yakalanmamış hata, bot kapatılıyor:", error);
+  botHatasindaDurumuBildirVeCik();
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("❌ Yakalanmamış promise hatası, bot kapatılıyor:", reason);
+  botHatasindaDurumuBildirVeCik();
+});
+
+async function botuBaslat() {
+  try {
+    await canliQrKodunuTemizle();
+    await botDurumunuKaydet("DISCONNECTED");
+    await client.initialize();
+  } catch (error) {
+    console.error("❌ WhatsApp bot başlatılamadı:", error);
+    await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
+      console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
+    });
+    process.exitCode = 1;
+  }
+}
+
+botuBaslat();
