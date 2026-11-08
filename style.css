@@ -1,0 +1,442 @@
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #1e1e24;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    color: #fff;
+}
+
+.container {
+    max-width: 650px;
+    width: 100%;
+    background: #2d2d35;
+    padding: 20px;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+}
+
+h1, h3 {
+    text-align: center;
+    color: #4caf50;
+    margin-top: 0;
+}
+
+.match-mode-container {
+    background: #222227;
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #3d3d45;
+}
+
+.radio-group {
+    display: flex;
+    justify-content: space-around;
+    font-size: 14px;
+}
+
+.radio-group label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.player-form-container {
+    background: #222227;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    border: 1px solid #444;
+}
+
+.form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.form-row input { flex: 2; }
+.form-row select { flex: 1; }
+
+.player-criteria-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.player-criteria-row select {
+    flex: 1;
+    min-width: 0;
+}
+
+.skills-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.skills-row-secondary {
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 15px;
+}
+
+.skills-row label {
+    font-size: 12px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.player-form-container input, .player-form-container select {
+    padding: 8px;
+    background: #3a3a42;
+    border: 1px solid #555;
+    color: white;
+    border-radius: 6px;
+}
+
+@media (max-width: 520px) {
+    .player-criteria-row {
+        flex-direction: column;
+        gap: 8px;
+    }
+}
+
+.skills-row input {
+    width: 45px;
+    text-align: center;
+}
+
+.add-btn {
+    width: 100%;
+    padding: 10px;
+    background: #4caf50;
+    border: none;
+    color: white;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.player-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #444;
+    padding: 10px;
+    border-radius: 6px;
+    background: #222227;
+    margin-bottom: 15px;
+}
+
+.player-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 0;
+    border-bottom: 1px solid #333;
+    font-size: 14px;
+}
+
+.player-item-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.skill-badges span {
+    font-size: 11px;
+    background: #444;
+    padding: 2px 4px;
+    border-radius: 3px;
+    margin-left: 3px;
+}
+
+.player-item-right,
+.skill-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.player-item-right {
+    justify-content: flex-end;
+}
+
+#generateBtn {
+    width: 100%;
+    padding: 14px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 25px;
+}
+
+/* ⚽ HALI SAHA VE DİZİLİM AYARLARI */
+.pitch-container {
+    display: flex;
+    justify-content: center;
+}
+
+.pitch {
+    width: 480px;
+    height: 700px;
+    background-color: #2e7d32;
+    border: 4px solid white;
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.4);
+}
+
+.center-line {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: white;
+}
+
+.center-circle {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 120px;
+    height: 120px;
+    border: 4px solid white;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.penalty-box {
+    position: absolute;
+    left: 25%;
+    width: 50%;
+    height: 80px;
+    border: 4px solid white;
+    box-sizing: border-box;
+}
+.penalty-box.top { 
+    top: 0; border-top: none; 
+}
+
+.penalty-box.bottom { 
+    bottom: 0; border-bottom: none; 
+}
+
+.goal-area {
+    position: absolute;
+    left: 35%;
+    width: 30%;
+    height: 35px;
+    border: 4px solid white;
+    box-sizing: border-box;
+}
+.goal-area.top { 
+    display: none !important; 
+}
+
+.goal-area.bottom { 
+    display: none !important; 
+}
+
+.penalty-arc-top {
+    position: absolute;
+    top: 35px;        /* Üst ceza sahası çizgisinin bittiği yere göre hizalandı */
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    /* Sadece alt yarım daireyi görünür yaparak ceza sahası önündeki yayı oluşturur */
+    clip-path: inset(45px 0px 0px 0px); 
+    z-index: 1;
+}
+
+.penalty-arc-bottom {
+    position: absolute;
+    bottom: 35px;     /* Alt ceza sahası çizgisinin bittiği yere göre hizalandı */
+    left: 50%;
+    width: 70px;
+    height: 70px;
+    border: 3px solid #ffffff;
+    border-radius: 50%;
+    transform: translateX(-50%);
+    /* Sadece üst yarım daireyi görünür yaparak ceza sahası önündeki yayı oluşturur */
+    clip-path: inset(0px 0px 45px 0px);
+    z-index: 1;
+}
+
+.team-pitch-area {
+    position: absolute;
+    width: 100%;
+    height: 50%;
+}
+#redTeamPitch { top: 0; }
+#whiteTeamPitch { bottom: 0; }
+
+.player-card {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    width: 80px;
+    transform: translateX(-50%);
+    transition: all 0.5s ease;
+}
+
+/* Kırmızı ve Beyaz için esnek sıralama (İsimlerin yukarı/aşağı yerleşimi) */
+.red-card { flex-direction: column-reverse; } /* Kırmızıda isim en altta olacak */
+.white-card { flex-direction: column; } /* Beyazda isim en altta kalacak */
+
+/* 👕 GERÇEK FORMA GÖRSELLERİ TASARIMI */
+.shirt-container {
+    position: relative;
+    width: 47px;   /* 2px Genişletildi (Eski hali 45px idi) */
+    height: 45px;  
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent !important; /* Arka plandaki ekstra renkleri zorla kapatır */
+    border: none !important;                  /* Olası tüm dış çizgileri siler */
+    box-shadow: none !important;              /* Eğer kutu gölgesi varsa kaldırır */
+}
+
+/* Kırmızı Takım Forması */
+.red-jersey {
+    background-image: url('forma-kirmizi.png') !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Beyaz Takım Forması */
+.white-jersey {
+    background-image: url('forma-beyaz.png') !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* Kaleci Forması */
+.gk-jersey {
+    background-image: url('forma-gk.png') !important;
+    background-color: transparent !important;
+    border: none !important;
+}
+
+/* 🔢 FORMANIN ORTASINDAKİ SAYI YAZISI (GENEL AYARLAR) */
+.shirt-main {
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 14px; /* Şu anki yazı boyutun */
+    font-weight: bold;
+    font-family: sans-serif;
+    z-index: 5;
+}
+
+/* 🟥 Kırmızı Takım Sayı Rengi (Beyaz Yazı + Siyah Kontür) */
+.red-jersey .shirt-main {
+    color: white !important;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8) !important;
+}
+
+/* ⬜ Beyaz Takım Sayı Rengi (Siyah Yazı + Beyaz Kontür) */
+.white-jersey .shirt-main {
+    color: #000000 !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8) !important;
+}
+
+/* 🟨 Kaleci Forması Sayı Rengi (Siyah Yazı + Sarı/Beyaz Kontür) */
+.gk-jersey .shirt-main {
+    color: #000000 !important;
+    text-shadow: 1px 1px 2px rgba(255,255,255,0.8), -1px -1px 2px rgba(255,255,255,0.8) !important;
+}
+
+.player-name {
+    white-space: nowrap !important; /* 🎯 ÇÖZÜM: Yazının alt satıra geçmesini KESİNLİKLE engeller, tek satır yapar */
+    width: auto !important; /* 🎯 ÇÖZÜM: Sabit genişliği kaldırır, kutu isim uzunluğuna göre otomatik uzar */
+    
+    text-overflow: clip !important; /* Üç noktayı (...) tamamen kapatır */
+    text-align: center;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 5px;
+    
+    /* 🖤 Orijinal Siyah Arka Plan Ayarları */
+    background: rgba(0, 0, 0, 0.85) !important; /* Net, belirgin siyah arka plan */
+    color: #ffffff !important; /* Beyaz yazı */
+    padding: 3px 8px !important; /* Sağdan soldan biraz daha rahat pay verdik */
+    border-radius: 4px !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    
+    position: relative;
+    display: inline-block;
+}
+
+/* Boşluk ayarları */
+.white-card .player-name { margin-top: 5px; }
+.red-card .player-name { margin-bottom: 5px; }
+
+.player-card {
+    z-index: 10 !important; /* Değerin 10 olması sahadaki tüm çizgilerin üstüne çıkması için fazlasıyla yeterlidir */
+}
+
+/* ===================================================
+   🎯 OYUNCU HAVUZU ÜSTÜNDEKİ OKLA GÖSTERİLEN BOŞLUĞU KISMA
+   =================================================== */
+
+/* 1. "Oyuncu Havuzu" başlığının altındaki gereksiz boşluğu sıfırlıyoruz */
+#listHeader {
+    margin-bottom: 10px !important;
+    margin-top: 5px !important;
+}
+
+/* 2. JS ile sonradan eklenen "Tümünü Seç / Kaldır" buton kutusunun boşluklarını sıkıştırıyoruz */
+#listHeader + div {
+    margin: 6px 0 !important; /* app.js içindeki 'margin: 8px 0' ayarını ezdik */
+    display: flex !important;
+    gap: 5px !important;
+}
+
+/* 3. Listenin en tepesindeki boşluğu tamamen kaldırıp butonlara yaklaştırıyoruz */
+.player-list {
+    margin-top: 2px !important;
+    padding-top: 2px !important;
+}
+
+/* 🏟️ SADECE SAHADAKİ OYUNCU KARTLARI (HAVUZ DIŞINDAKİLER) */
+div:not(.player-list):not(.pool-list) > .player-card { 
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Sadece sahadaki isimlerin arka plan kutusunu büyütür */
+div:not(.player-list):not(.pool-list) > .player-card .player-name {
+    line-height: 1.1 !important;
+    margin-top: -4px !important; 
+    margin-bottom: 0 !important;
+    
+    /* 📐 KUTUYU BÜYÜTMEK İÇİN EKLEDIĞIMIZ AYARLAR: */
+    padding: 3px 8px !important;    /* İlk değer üst-alt boşluk (3px), ikinci değer sağ-sol genişlik (8px) */
+    border-radius: 4px !important;  /* Köşelerin hafif oval/yuvarlak durması için */
+    display: inline-block !important; /* Genişliğin tam uygulanabilmesi için */
+}
