@@ -402,6 +402,12 @@ async function mesajıIsle(msg) {
   const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid", "61027207114891@lid"];
   if (!izinVerilenGrupIDs.includes(msg.from)) return;
 
+  if (body.toUpperCase().trim() === "BOT AKTİF Mİ?") {
+    console.log("🎲 Kalp atışı kontrolü tetiklendi. Yanıt fırlatılıyor...");
+    await client.sendMessage(msg.from, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden 7/24 (08:30 - 22:00) dinlemedeyim. Komutlarınızı bekliyorum.");
+    return;
+  }
+
   if (!(msg.body || "").toUpperCase().includes("ANA KADRO")) return;
 
   console.log(`🎯 [BAŞARILI] Bot Test grubundan mesaj yakalandı! Gönderen ID: ${msg.from}`);
