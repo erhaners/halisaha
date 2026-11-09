@@ -387,12 +387,19 @@ async function mesajıIsle(msg) {
   console.log("📩 Arka Plan Tetiklendi! Gönderen ID:", msg.from, "| İçerik Boyutu:", body.length);
   if (msg.fromMe && body.includes("Akıllı Kadro Dağıtımı")) return;
 
-  const izinliGonderenMi = msg.from === "61027207114891@lid";
-  if (!izinliGonderenMi || !body.toLocaleUpperCase("tr-TR").includes("ANA KADRO")) return;
-
-  console.log("🎯 İzinli kadro mesajı alındı ->", msg.from);
-
   try {
+    const chat = await msg.getChat();
+    const grupAdi = typeof chat.name === "string"
+      ? chat.name.toLocaleUpperCase("tr-TR")
+      : "";
+    const izinliGrupAdlari = ["BOT TEST", "HAS KADRO"];
+    const izinliGrupMu = izinliGrupAdlari.some((grupAdiParcasi) =>
+      grupAdi.includes(grupAdiParcasi)
+    );
+    if (!izinliGrupMu || !body.toLocaleUpperCase("tr-TR").includes("ANA KADRO")) return;
+
+    console.log("🎯 İzinli kadro mesajı alındı ->", chat.name);
+
     const { anaKadro, yedekKadro: yedekKadroIsimleri } = isimListesiniAyikla(body);
     const oyuncuHavuzu = await oyuncuHavuzunuGetir();
     const yedekler = yedekKadroIsimleri.map((isim) => {
