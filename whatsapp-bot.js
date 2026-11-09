@@ -396,7 +396,7 @@ async function mesajıIsle(msg) {
   if (!body.trim()) return;
 
   console.log("📩 Arka Plan Tetiklendi! Gönderen ID:", msg.from, "| İçerik Boyutu:", body.length);
-  if (msg.fromMe && body.includes("Akıllı Kadro Dağıtımı")) return;
+  if (msg.fromMe && (body.includes("Akıllı Kadro Dağıtımı") || body.includes("KIRMIZI TAKIM"))) return;
 
   try {
     let chat;
@@ -415,7 +415,8 @@ async function mesajıIsle(msg) {
     const izinliGrupMu = izinliGrupAdlari.some((grupAdiParcasi) =>
       grupAdi.includes(grupAdiParcasi)
     );
-    if (!izinliGrupMu || !body.toLocaleUpperCase("tr-TR").includes("ANA KADRO")) return;
+    if (!izinliGrupMu) return;
+    if (!body.toUpperCase().includes("ANA KADRO")) return;
 
     console.log("🎯 İzinli kadro mesajı alındı ->", chat.name);
 
