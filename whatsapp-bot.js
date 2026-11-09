@@ -400,7 +400,7 @@ async function mesajıIsle(msg) {
 
   if (msg.fromMe && (body.includes("Akıllı Kadro Dağıtımı") || body.includes("KIRMIZI TAKIM"))) return;
 
-  const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid"];
+  const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid", "61027207114891@lid"];
   if (!izinVerilenGrupIDs.includes(msg.from)) return;
 
   if (!(msg.body || "").toUpperCase().includes("ANA KADRO")) return;
