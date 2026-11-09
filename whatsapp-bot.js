@@ -391,12 +391,23 @@ client.on("ready", async () => {
 });
 
 async function mesajıIsle(msg) {
+  if (!msg || !msg.from || msg.from.includes("broadcast") || msg.from.includes("@lid")) return;
   const body = typeof msg.body === "string" ? msg.body : "";
+  if (!body.trim()) return;
+
   console.log("📩 Arka Plan Tetiklendi! Gönderen ID:", msg.from, "| İçerik Boyutu:", body.length);
   if (msg.fromMe && body.includes("Akıllı Kadro Dağıtımı")) return;
 
   try {
-    const chat = await msg.getChat();
+    let chat;
+    try {
+      chat = await msg.getChat();
+      if (!chat || !chat.isGroup) return;
+    } catch (e) {
+      console.log("⚠️ Sohbet odası bilgisi alınamadı, mesaj atlanıyor.");
+      return;
+    }
+
     const grupAdi = typeof chat.name === "string"
       ? chat.name.toLocaleUpperCase("tr-TR")
       : "";
