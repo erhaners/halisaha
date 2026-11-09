@@ -391,35 +391,23 @@ client.on("ready", async () => {
 });
 
 async function mesajıIsle(msg) {
-  if (!msg || !msg.from || msg.from.includes("broadcast") || msg.from.includes("@lid")) return;
+  console.log(`📡 [YENİ MESAJ GELDİ] -> msg.from: "${msg?.from}" | Gövde: "${String(msg?.body || "").substring(0, 15)}..."`);
+
+  if (!msg || !msg.from || msg.from.includes('broadcast')) return;
+
   const body = typeof msg.body === "string" ? msg.body : "";
   if (!body.trim()) return;
 
-  console.log("📩 Arka Plan Tetiklendi! Gönderen ID:", msg.from, "| İçerik Boyutu:", body.length);
   if (msg.fromMe && (body.includes("Akıllı Kadro Dağıtımı") || body.includes("KIRMIZI TAKIM"))) return;
 
+  const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid"];
+  if (!izinVerilenGrupIDs.includes(msg.from)) return;
+
+  if (!(msg.body || "").toUpperCase().includes("ANA KADRO")) return;
+
+  console.log(`🎯 [BAŞARILI] Bot Test grubundan mesaj yakalandı! Gönderen ID: ${msg.from}`);
+
   try {
-    let chat;
-    try {
-      chat = await msg.getChat();
-      if (!chat || !chat.isGroup) return;
-    } catch (e) {
-      console.log("⚠️ Sohbet odası bilgisi alınamadı, mesaj atlanıyor.");
-      return;
-    }
-
-    const grupAdi = typeof chat.name === "string"
-      ? chat.name.toLocaleUpperCase("tr-TR")
-      : "";
-    const izinliGrupAdlari = ["BOT TEST", "HAS KADRO"];
-    const izinliGrupMu = izinliGrupAdlari.some((grupAdiParcasi) =>
-      grupAdi.includes(grupAdiParcasi)
-    );
-    if (!izinliGrupMu) return;
-    if (!body.toUpperCase().includes("ANA KADRO")) return;
-
-    console.log("🎯 İzinli kadro mesajı alındı ->", chat.name);
-
     const { anaKadro, yedekKadro: yedekKadroIsimleri } = isimListesiniAyikla(body);
     const oyuncuHavuzu = await oyuncuHavuzunuGetir();
     const yedekler = yedekKadroIsimleri.map((isim) => {
@@ -455,20 +443,18 @@ ${yedekMesaji || "Yedek oyuncu yok"}
 
 🏟️ _Kadrolar https://erhaners.github.io/halisaha/ taktik tahtasına işlenmiştir._`;
 
-    console.log(
-      "✅ Canlı kadro Firebase'e kaydedildi:\n",
-      JSON.stringify(firebaseKadro, null, 2)
-    );
+    console.log("✅ Canlı kadro Firebase'e başarıyla kaydedildi.");
     try {
       await msg.reply(yanitMetni);
-      console.log("🚀 Akıllı kadro mesajı WhatsApp grubuna başarıyla fırlatıldı!");
+      console.log("🚀 Dağıtım yanıtı gruba başarıyla gönderildi!");
     } catch (error) {
-      console.error("❌ WhatsApp mesajı gönderilirken hata oluştu:", error);
+      console.error("❌ WhatsApp yanıtı gönderilirken hata oluştu:", error);
     }
   } catch (error) {
-    console.error("❌ Mesaj işleme hatası:", error);
+    console.error("❌ Kadro işleme adımlarında hata oluştu:", error);
   }
 }
+
 
 client.on("message", mesajıIsle);
 client.on("message_create", mesajıIsle);
