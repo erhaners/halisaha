@@ -444,7 +444,16 @@ ${yedekMesaji || "Yedek oyuncu yok"}
 
     console.log("✅ Canlı kadro Firebase'e başarıyla kaydedildi.");
     try {
-      await msg.reply(yanitMetni);
+      const tumSohbetler = await client.getChats();
+      const gercekSohbetOdasi = tumSohbetler.find(c => c.isGroup && (c.name.toLowerCase().includes("has kadro") || c.name.toLowerCase().includes("bot test")));
+
+      let hedefGonderimID = msg.from;
+      if (gercekSohbetOdasi) {
+        hedefGonderimID = gercekSohbetOdasi.id._serialized;
+        console.log(`💡 Dinamik Hedef Seçildi -> Grup Adı: ${gercekSohbetOdasi.name} | Gerçek ID: ${hedefGonderimID}`);
+      }
+
+      await client.sendMessage(hedefGonderimID, yanitMetni);
       console.log("🚀 Dağıtım yanıtı gruba başarıyla gönderildi!");
     } catch (error) {
       console.error("❌ WhatsApp yanıtı gönderilirken hata oluştu:", error);
