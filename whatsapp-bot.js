@@ -350,7 +350,6 @@ const client = new Client({
       '--disable-features=AudioServiceSandbox',
       '--disable-software-rasterizer',
       '--prerender-from-omnibox=disabled',
-      '--js-flags="--max-old-space-size=150"', // Chrome'un RAM kullanımını 150MB ile sınırlandırır
     ],
   },
 });
