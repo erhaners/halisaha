@@ -607,14 +607,23 @@ async function mesajıIsle(msg) {
     const firebaseKadro = { kadro, mod, yedekler };
     await set(ref(database, "sistem_hafizasi/canli_kadro"), firebaseKadro);
 
-    const takimMesaji = (takimKadro) => Object.values(takimKadro)
-      .filter(Boolean)
-      .map((oyuncu, index) =>
-        `${index + 1}. ${oyuncu.isim || oyuncu} (${oyuncu.anaMevki || VARSAYILAN_OYUNCU.anaMevki})`
+    const slotMevkileri = {
+      pos_0: "KL",
+      pos_1: "SLB",
+      pos_2: "STP",
+      pos_3: "SĞB",
+      pos_4: "SLO",
+      pos_5: "SĞO",
+      pos_6: "FOR",
+    };
+    const takimMesaji = (takimKadro) => Object.entries(takimKadro)
+      .filter(([, oyuncu]) => Boolean(oyuncu))
+      .map(([slot, oyuncu], index) =>
+        `${index + 1}. ${oyuncu.isim || oyuncu} (${slotMevkileri[slot] || mevkiKodunuNormallestir(oyuncu.anaMevki) || VARSAYILAN_OYUNCU.anaMevki})`
       )
       .join("\n");
     const yedekMesaji = yedekler
-      .map((oyuncu) => `• ${oyuncu.isim} (${oyuncu.anaMevki})`)
+      .map((oyuncu) => `• ${oyuncu.isim} (${mevkiKodunuNormallestir(oyuncu.anaMevki)})`)
       .join("\n");
     const yanitMetni = `⚽ *Akıllı Kadro Dağıtımı Tamamlandı!*
 
