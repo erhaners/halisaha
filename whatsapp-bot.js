@@ -86,7 +86,7 @@ function isimAnahtari(isim) {
   return String(isim || "").trim().toLocaleUpperCase("tr-TR");
 }
 
-function genelPuanHesapla(oyuncu) {
+function mevkiyeGorePuanHesapla(oyuncu, mevki) {
   if (!oyuncu) return 50;
 
   const puanAl = (deger) => {
@@ -101,7 +101,7 @@ function genelPuanHesapla(oyuncu) {
   const pas = puanAl(oyuncu.pas);
   const sut = puanAl(oyuncu.sut);
 
-  switch (mevkiKodunuNormallestir(oyuncu.anaMevki)) {
+  switch (mevkiKodunuNormallestir(mevki)) {
     case "KL":
       return kl;
     case "DEF":
@@ -112,6 +112,10 @@ function genelPuanHesapla(oyuncu) {
     default:
       return Math.round((ort * 0.40) + (pas * 0.30) + (hiz * 0.15) + (sut * 0.15));
   }
+}
+
+function genelPuanHesapla(oyuncu) {
+  return mevkiyeGorePuanHesapla(oyuncu, oyuncu?.anaMevki);
 }
 
 function isimListesiniAyikla(mesaj) {
@@ -219,31 +223,42 @@ function takimi3_2_1Diz(takim) {
     ORT: ["pos_4", "pos_5"],
     FOR: ["pos_6"],
   };
-  const pozisyonLimitleri = { KL: 1, DEF: 3, ORT: 2, FOR: 1 };
-  const oyuncularPozisyonlaraGore = { KL: [], DEF: [], ORT: [], FOR: [] };
   const kadro = Object.fromEntries(
     Array.from({ length: 7 }, (_, index) => [`pos_${index}`, null])
   );
+  const kalanOyuncular = [...takim];
 
-  if (takim.length > 7) {
-    throw new Error("3-2-1 dizilimi en fazla 7 oyuncu alabilir.");
+  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
+    for (const slot of slotlar) {
+      const index = kalanOyuncular.findIndex(
+        (oyuncu) => mevkiKodunuNormallestir(oyuncu.anaMevki) === pozisyon
+      );
+      if (index >= 0) kadro[slot] = kalanOyuncular.splice(index, 1)[0];
+    }
   }
 
-  for (const oyuncu of takim) {
-    const pozisyon = mevkiKodunuNormallestir(oyuncu.anaMevki);
-    if (!pozisyonSlotlari[pozisyon]) {
-      throw new Error(`${oyuncu.isim || "Oyuncu"} için geçersiz ana mevki: ${pozisyon || "boş"}.`);
+  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
+    for (const slot of slotlar) {
+      if (kadro[slot] || kalanOyuncular.length === 0) continue;
+      const index = kalanOyuncular.findIndex((oyuncu) =>
+        mevkiKodunuNormallestir(
+          oyuncu.alternatifMevki || oyuncu.alternatifPosition
+        ) === pozisyon
+      );
+      if (index >= 0) kadro[slot] = kalanOyuncular.splice(index, 1)[0];
     }
-    if (oyuncularPozisyonlaraGore[pozisyon].length >= pozisyonLimitleri[pozisyon]) {
-      throw new Error(`${pozisyon} mevkiinde takım başına izin verilen oyuncu sayısı aşıldı.`);
-    }
-    oyuncularPozisyonlaraGore[pozisyon].push(oyuncu);
   }
 
-  for (const [pozisyon, oyuncular] of Object.entries(oyuncularPozisyonlaraGore)) {
-    oyuncular.forEach((oyuncu, index) => {
-      kadro[pozisyonSlotlari[pozisyon][index]] = oyuncu;
-    });
+  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
+    for (const slot of slotlar) {
+      if (kadro[slot] || kalanOyuncular.length === 0) continue;
+      kalanOyuncular.sort(
+        (a, b) =>
+          mevkiyeGorePuanHesapla(b, pozisyon) -
+          mevkiyeGorePuanHesapla(a, pozisyon)
+      );
+      kadro[slot] = kalanOyuncular.shift();
+    }
   }
 
   return kadro;
@@ -265,14 +280,10 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
     };
   });
 
-  const pozisyonLimitleri = { KL: 1, DEF: 3, ORT: 2, FOR: 1 };
-  const oyuncuMevkileri = oyuncuListesi.map((oyuncu) => {
-    const pozisyon = mevkiKodunuNormallestir(oyuncu.anaMevki);
-    if (!pozisyonLimitleri[pozisyon]) {
-      throw new Error(`${oyuncu.isim || "Oyuncu"} için geçersiz ana mevki: ${pozisyon || "boş"}.`);
-    }
-    return pozisyon;
-  });
+  const pozisyonlar = ["KL", "DEF", "ORT", "FOR"];
+  const oyuncuMevkileri = oyuncuListesi.map((oyuncu) =>
+    mevkiKodunuNormallestir(oyuncu.anaMevki)
+  );
 
   const tercihEdilenTakim = oyuncuListesi.map((oyuncu) => {
     const takim = isimAnahtari(oyuncu.anaTakim);
@@ -297,7 +308,9 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
     oyuncuListesi.forEach((oyuncu, index) => {
       const takim = (maske & (1 << index)) === 0 ? "white" : "red";
       takimlar[takim].push(oyuncu);
-      pozisyonSayilari[takim][oyuncuMevkileri[index]] += 1;
+      if (pozisyonSayilari[takim][oyuncuMevkileri[index]] !== undefined) {
+        pozisyonSayilari[takim][oyuncuMevkileri[index]] += 1;
+      }
       if (takim === "red") redGucu += genelPuanHesapla(oyuncu);
       else whiteGucu += genelPuanHesapla(oyuncu);
       if (tercihEdilenTakim[index] && tercihEdilenTakim[index] !== takim) {
@@ -305,21 +318,13 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
       }
     });
 
-    if (
-      takimlar.red.length > 7 ||
-      takimlar.white.length > 7 ||
-      Object.keys(pozisyonLimitleri).some((pozisyon) =>
-        pozisyonSayilari.red[pozisyon] > pozisyonLimitleri[pozisyon] ||
-        pozisyonSayilari.white[pozisyon] > pozisyonLimitleri[pozisyon]
-      )
-    ) {
-      continue;
-    }
-
     const puanlar = [
       Math.abs(takimlar.red.length - takimlar.white.length),
-      tercihIhlali,
+      ...pozisyonlar.map((pozisyon) =>
+        Math.abs(pozisyonSayilari.red[pozisyon] - pozisyonSayilari.white[pozisyon])
+      ),
       Math.abs(redGucu - whiteGucu),
+      tercihIhlali,
     ];
     const dahaIyiMi = !enIyiAtama || puanlar.some((puan, index) => {
       if (puan !== enIyiAtama.puanlar[index]) {
@@ -332,10 +337,6 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
     });
 
     if (dahaIyiMi) enIyiAtama = { takimlar, puanlar };
-  }
-
-  if (!enIyiAtama) {
-    throw new Error("Oyuncu mevkileri 3-2-1 takım limitlerine sığmıyor; kadro dağıtılamadı.");
   }
 
   const { takimlar } = enIyiAtama;
