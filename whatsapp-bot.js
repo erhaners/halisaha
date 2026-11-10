@@ -104,11 +104,17 @@ function mevkiyeGorePuanHesapla(oyuncu, mevki) {
   switch (mevkiKodunuNormallestir(mevki)) {
     case "KL":
       return kl;
+    case "SLB":
+    case "STP":
+    case "SĞB":
     case "DEF":
       return Math.round((def * 0.50) + (hiz * 0.20) + (pas * 0.20) + (ort * 0.10));
+    case "SLO":
+    case "SĞO":
+    case "ORT":
+      return Math.round((ort * 0.40) + (pas * 0.30) + (hiz * 0.15) + (sut * 0.15));
     case "FOR":
       return Math.round((forPuani * 0.50) + (sut * 0.25) + (hiz * 0.15) + (pas * 0.10));
-    case "ORT":
     default:
       return Math.round((ort * 0.40) + (pas * 0.30) + (hiz * 0.15) + (sut * 0.15));
   }
@@ -208,57 +214,114 @@ function mevkiKodunuNormallestir(mevki) {
   const mevkiKodlari = {
     KALECI: "KL",
     KALECİ: "KL",
+    GK: "KL",
+    GOALKEEPER: "KL",
+    "SOL BEK": "SLB",
+    "SOL DEFANS": "SLB",
+    LB: "SLB",
+    LEFTBACK: "SLB",
+    STOPER: "STP",
+    "MERKEZ DEFANS": "STP",
+    CB: "STP",
+    CENTERBACK: "STP",
+    "SAĞ BEK": "SĞB",
+    "SAG BEK": "SĞB",
+    "SAĞ DEFANS": "SĞB",
+    "SAG DEFANS": "SĞB",
+    RB: "SĞB",
+    RIGHTBACK: "SĞB",
     DEFANS: "DEF",
+    "SOL ORTA SAHA": "SLO",
+    "SAĞ ORTA SAHA": "SĞO",
+    "SAG ORTA SAHA": "SĞO",
     "ORTA SAHA": "ORT",
     HUC: "FOR",
     HÜCUM: "FOR",
+    SANTRAFOR: "FOR",
+    ST: "FOR",
   };
   return mevkiKodlari[kod] || kod;
 }
 
+function mevkiGrubunuBul(mevki) {
+  switch (mevkiKodunuNormallestir(mevki)) {
+    case "KL":
+      return "KL";
+    case "DEF":
+    case "SLB":
+    case "STP":
+    case "SĞB":
+      return "DEF";
+    case "ORT":
+    case "SLO":
+    case "SĞO":
+      return "ORT";
+    case "FOR":
+      return "FOR";
+    default:
+      return null;
+  }
+}
+
 function takimi3_2_1Diz(takim) {
-  const pozisyonSlotlari = {
-    KL: ["pos_0"],
-    DEF: ["pos_1", "pos_2", "pos_3"],
-    ORT: ["pos_4", "pos_5"],
-    FOR: ["pos_6"],
-  };
+  const slotlar = [
+    { kod: "KL", id: "pos_0", grup: "KL" },
+    { kod: "SLB", id: "pos_1", grup: "DEF" },
+    { kod: "STP", id: "pos_2", grup: "DEF" },
+    { kod: "SĞB", id: "pos_3", grup: "DEF" },
+    { kod: "SLO", id: "pos_4", grup: "ORT" },
+    { kod: "SĞO", id: "pos_5", grup: "ORT" },
+    { kod: "FOR", id: "pos_6", grup: "FOR" },
+  ];
   const kadro = Object.fromEntries(
     Array.from({ length: 7 }, (_, index) => [`pos_${index}`, null])
   );
   const kalanOyuncular = [...takim];
 
-  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
-    for (const slot of slotlar) {
-      const index = kalanOyuncular.findIndex(
-        (oyuncu) => mevkiKodunuNormallestir(oyuncu.anaMevki) === pozisyon
-      );
-      if (index >= 0) kadro[slot] = kalanOyuncular.splice(index, 1)[0];
-    }
+  const oyuncuSec = (uygunMu) => {
+    const index = kalanOyuncular.findIndex(uygunMu);
+    return index < 0 ? null : kalanOyuncular.splice(index, 1)[0];
+  };
+
+  for (const slot of slotlar) {
+    kadro[slot.id] = oyuncuSec(
+      (oyuncu) => mevkiKodunuNormallestir(oyuncu.anaMevki) === slot.kod
+    );
   }
 
-  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
-    for (const slot of slotlar) {
-      if (kadro[slot] || kalanOyuncular.length === 0) continue;
-      const index = kalanOyuncular.findIndex((oyuncu) =>
-        mevkiKodunuNormallestir(
-          oyuncu.alternatifMevki || oyuncu.alternatifPosition
-        ) === pozisyon
-      );
-      if (index >= 0) kadro[slot] = kalanOyuncular.splice(index, 1)[0];
-    }
+  for (const slot of slotlar) {
+    if (kadro[slot.id]) continue;
+    kadro[slot.id] = oyuncuSec(
+      (oyuncu) => mevkiGrubunuBul(oyuncu.anaMevki) === slot.grup
+    );
   }
 
-  for (const [pozisyon, slotlar] of Object.entries(pozisyonSlotlari)) {
-    for (const slot of slotlar) {
-      if (kadro[slot] || kalanOyuncular.length === 0) continue;
-      kalanOyuncular.sort(
-        (a, b) =>
-          mevkiyeGorePuanHesapla(b, pozisyon) -
-          mevkiyeGorePuanHesapla(a, pozisyon)
-      );
-      kadro[slot] = kalanOyuncular.shift();
-    }
+  for (const slot of slotlar) {
+    if (kadro[slot.id]) continue;
+    kadro[slot.id] = oyuncuSec(
+      (oyuncu) => mevkiKodunuNormallestir(
+        oyuncu.alternatifMevki || oyuncu.alternatifPosition
+      ) === slot.kod
+    );
+  }
+
+  for (const slot of slotlar) {
+    if (kadro[slot.id]) continue;
+    kadro[slot.id] = oyuncuSec(
+      (oyuncu) => mevkiGrubunuBul(
+        oyuncu.alternatifMevki || oyuncu.alternatifPosition
+      ) === slot.grup
+    );
+  }
+
+  for (const slot of slotlar) {
+    if (kadro[slot.id] || kalanOyuncular.length === 0) continue;
+    kalanOyuncular.sort(
+      (a, b) =>
+        mevkiyeGorePuanHesapla(b, slot.kod) -
+        mevkiyeGorePuanHesapla(a, slot.kod)
+    );
+    kadro[slot.id] = kalanOyuncular.shift();
   }
 
   return kadro;
@@ -280,66 +343,149 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
     };
   });
 
-  const pozisyonlar = ["KL", "DEF", "ORT", "FOR"];
-  const oyuncuMevkileri = oyuncuListesi.map((oyuncu) =>
-    mevkiKodunuNormallestir(oyuncu.anaMevki)
-  );
-
-  const tercihEdilenTakim = oyuncuListesi.map((oyuncu) => {
+  const tercihEdilenTakim = (oyuncu) => {
     const takim = isimAnahtari(oyuncu.anaTakim);
     if (takim === "KIRMIZI" || takim === "RED") return "red";
     if (takim === "BEYAZ" || takim === "WHITE") return "white";
     return null;
-  });
+  };
+  const takimlar = { red: [], white: [] };
+  const atanmamisOyuncular = [];
 
-  let enIyiAtama = null;
-  const atamaSayisi = 1 << oyuncuListesi.length;
-
-  for (let maske = 0; maske < atamaSayisi; maske += 1) {
-    const takimlar = { red: [], white: [] };
-    const pozisyonSayilari = {
-      red: { KL: 0, DEF: 0, ORT: 0, FOR: 0 },
-      white: { KL: 0, DEF: 0, ORT: 0, FOR: 0 },
-    };
-    let redGucu = 0;
-    let whiteGucu = 0;
-    let tercihIhlali = 0;
-
-    oyuncuListesi.forEach((oyuncu, index) => {
-      const takim = (maske & (1 << index)) === 0 ? "white" : "red";
-      takimlar[takim].push(oyuncu);
-      if (pozisyonSayilari[takim][oyuncuMevkileri[index]] !== undefined) {
-        pozisyonSayilari[takim][oyuncuMevkileri[index]] += 1;
-      }
-      if (takim === "red") redGucu += genelPuanHesapla(oyuncu);
-      else whiteGucu += genelPuanHesapla(oyuncu);
-      if (tercihEdilenTakim[index] && tercihEdilenTakim[index] !== takim) {
-        tercihIhlali += 1;
-      }
-    });
-
-    const puanlar = [
-      Math.abs(takimlar.red.length - takimlar.white.length),
-      ...pozisyonlar.map((pozisyon) =>
-        Math.abs(pozisyonSayilari.red[pozisyon] - pozisyonSayilari.white[pozisyon])
-      ),
-      Math.abs(redGucu - whiteGucu),
-      tercihIhlali,
-    ];
-    const dahaIyiMi = !enIyiAtama || puanlar.some((puan, index) => {
-      if (puan !== enIyiAtama.puanlar[index]) {
-        return puan < enIyiAtama.puanlar[index] &&
-          puanlar.slice(0, index).every((onceki, oncekiIndex) =>
-            onceki === enIyiAtama.puanlar[oncekiIndex]
-          );
-      }
-      return false;
-    });
-
-    if (dahaIyiMi) enIyiAtama = { takimlar, puanlar };
+  for (const oyuncu of oyuncuListesi) {
+    const tercih = tercihEdilenTakim(oyuncu);
+    if (tercih && takimlar[tercih].length < 7) {
+      takimlar[tercih].push(oyuncu);
+    } else {
+      atanmamisOyuncular.push(oyuncu);
+    }
   }
 
-  const { takimlar } = enIyiAtama;
+  for (const oyuncu of atanmamisOyuncular) {
+    const redGucu = takimlar.red.reduce(
+      (toplam, kisi) => toplam + genelPuanHesapla(kisi),
+      0
+    );
+    const whiteGucu = takimlar.white.reduce(
+      (toplam, kisi) => toplam + genelPuanHesapla(kisi),
+      0
+    );
+
+    if (takimlar.red.length < takimlar.white.length) {
+      takimlar.red.push(oyuncu);
+    } else if (takimlar.white.length < takimlar.red.length) {
+      takimlar.white.push(oyuncu);
+    } else if (takimlar.red.length < 7 && redGucu <= whiteGucu) {
+      takimlar.red.push(oyuncu);
+    } else if (takimlar.white.length < 7) {
+      takimlar.white.push(oyuncu);
+    } else {
+      takimlar.red.push(oyuncu);
+    }
+  }
+
+  const limitler = { KL: 1, DEF: 3, ORT: 2, FOR: 1 };
+  const rolGrubu = (oyuncu) => mevkiGrubunuBul(oyuncu.anaMevki);
+  const rolAdetleri = (takim) => {
+    const adetler = { KL: 0, DEF: 0, ORT: 0, FOR: 0 };
+    for (const oyuncu of takim) {
+      const grup = rolGrubu(oyuncu);
+      if (grup) adetler[grup] += 1;
+    }
+    return adetler;
+  };
+  const fazlalikPuani = (adetler) =>
+    Object.keys(limitler).reduce(
+      (toplam, grup) => toplam + Math.max(0, adetler[grup] - limitler[grup]),
+      0
+    );
+  const takimGucu = (takim) =>
+    takim.reduce((toplam, oyuncu) => toplam + genelPuanHesapla(oyuncu), 0);
+
+  while (true) {
+    const adetler = {
+      red: rolAdetleri(takimlar.red),
+      white: rolAdetleri(takimlar.white),
+    };
+    const mevcutFazlalik =
+      fazlalikPuani(adetler.red) + fazlalikPuani(adetler.white);
+    let enIyiTakas = null;
+    const gucler = {
+      red: takimGucu(takimlar.red),
+      white: takimGucu(takimlar.white),
+    };
+
+    for (const kaynak of ["red", "white"]) {
+      const hedef = kaynak === "red" ? "white" : "red";
+      for (let kaynakIndex = 0; kaynakIndex < takimlar[kaynak].length; kaynakIndex += 1) {
+        const tasinacakOyuncu = takimlar[kaynak][kaynakIndex];
+        const tasinacakGrup = rolGrubu(tasinacakOyuncu);
+        if (!tasinacakGrup || adetler[kaynak][tasinacakGrup] <= limitler[tasinacakGrup]) {
+          continue;
+        }
+
+        for (let hedefIndex = 0; hedefIndex < takimlar[hedef].length; hedefIndex += 1) {
+          const takasOyuncusu = takimlar[hedef][hedefIndex];
+          const takasGrubu = rolGrubu(takasOyuncusu);
+          if (!takasGrubu || adetler[hedef][takasGrubu] <= limitler[takasGrubu]) {
+            continue;
+          }
+
+          const kaynakYeni = { ...adetler[kaynak] };
+          const hedefYeni = { ...adetler[hedef] };
+          kaynakYeni[tasinacakGrup] -= 1;
+          kaynakYeni[takasGrubu] += 1;
+          hedefYeni[takasGrubu] -= 1;
+          hedefYeni[tasinacakGrup] += 1;
+          const yeniFazlalik =
+            fazlalikPuani(kaynakYeni) + fazlalikPuani(hedefYeni);
+          if (yeniFazlalik >= mevcutFazlalik) continue;
+
+          const redDegisikligi = kaynak === "red"
+            ? genelPuanHesapla(takasOyuncusu) - genelPuanHesapla(tasinacakOyuncu)
+            : genelPuanHesapla(tasinacakOyuncu) - genelPuanHesapla(takasOyuncusu);
+          const gucFarki = Math.abs(
+            gucler.red + redDegisikligi - (gucler.white - redDegisikligi)
+          );
+          const tercihIhlali =
+            (tercihEdilenTakim(tasinacakOyuncu) &&
+              tercihEdilenTakim(tasinacakOyuncu) !== hedef ? 1 : 0) +
+            (tercihEdilenTakim(takasOyuncusu) &&
+              tercihEdilenTakim(takasOyuncusu) !== kaynak ? 1 : 0);
+          const aday = {
+            kaynak,
+            kaynakIndex,
+            hedef,
+            hedefIndex,
+            yeniFazlalik,
+            tercihIhlali,
+            gucFarki,
+          };
+          if (
+            !enIyiTakas ||
+            aday.yeniFazlalik < enIyiTakas.yeniFazlalik ||
+            aday.yeniFazlalik === enIyiTakas.yeniFazlalik &&
+              aday.tercihIhlali < enIyiTakas.tercihIhlali ||
+            aday.yeniFazlalik === enIyiTakas.yeniFazlalik &&
+              aday.tercihIhlali === enIyiTakas.tercihIhlali &&
+              aday.gucFarki < enIyiTakas.gucFarki
+          ) {
+            enIyiTakas = aday;
+          }
+        }
+      }
+    }
+
+    if (!enIyiTakas) break;
+    [
+      takimlar[enIyiTakas.kaynak][enIyiTakas.kaynakIndex],
+      takimlar[enIyiTakas.hedef][enIyiTakas.hedefIndex],
+    ] = [
+      takimlar[enIyiTakas.hedef][enIyiTakas.hedefIndex],
+      takimlar[enIyiTakas.kaynak][enIyiTakas.kaynakIndex],
+    ];
+  }
+
   return {
     mod,
     kadro: {
