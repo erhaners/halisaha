@@ -730,9 +730,30 @@ async function mesajıIsle(msg) {
   const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid", "61027207114891@lid"];
   if (!izinVerilenGrupIDs.includes(msg.from)) return;
 
+  let davetBekleyen = null;
+  try {
+    const davetSnapshot = await get(ref(database, "sistem_hafizasi/davet_bekleyen"));
+    davetBekleyen = davetSnapshot.val();
+  } catch (error) {
+    console.error("❌ Bekleyen davet Firebase'den okunamadı:", error);
+    return;
+  }
+
+  let contact = null;
+  if (davetBekleyen) {
+    try {
+      contact = await msg.getContact();
+      const davetYanitlandi = await davetYanitiniIsle(msg, body, davetBekleyen, contact);
+      if (davetYanitlandi) return;
+    } catch (error) {
+      console.error("❌ Bekleyen davet yanıtı işlenemedi:", error);
+      return;
+    }
+  }
+
   if (body.trim() === "-1") {
     try {
-      await eksiBirIsle(msg);
+      await eksiBirIsle(msg, contact);
     } catch (error) {
       console.error("❌ -1 kadro değişikliği işlenemedi:", error);
     }
@@ -826,10 +847,169 @@ function kadroOyuncusununAdi(oyuncu) {
   return typeof oyuncu === "string" ? oyuncu : oyuncu?.isim;
 }
 
-async function eksiBirIsle(msg) {
+function yedekleriDiziOlarakAl(yedekler) {
+  return (
+    Array.isArray(yedekler)
+      ? [...yedekler]
+      : Object.values(yedekler || {})
+  ).filter(Boolean);
+}
+
+function davetTakiminiNormallestir(takim) {
+  const takimAnahtari = String(takim || "").trim().toLowerCase();
+  if (takimAnahtari === "red" || takimAnahtari === "kırmızı") return "red";
+  if (takimAnahtari === "white" || takimAnahtari === "beyaz") return "white";
+  return null;
+}
+
+async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
+  if (msg.fromMe || !davetBekleyen?.isim) return false;
+
+  const davetEdilenAnahtari = oyuncuAdiAnahtari(davetBekleyen.isim);
+  const gonderenAdlari = [contact?.name, contact?.pushname]
+    .map(oyuncuAdiAnahtari)
+    .filter(Boolean);
+  if (!gonderenAdlari.includes(davetEdilenAnahtari)) return false;
+
+  const yanit = body.trim().toLocaleLowerCase("tr-TR");
+  const yanitKelimeleri = yanit.match(/[a-zçğıöşü0-9+-]+/g) || [];
+  const yanitIceriyor = (ifade) =>
+    ifade === "+1" || ifade === "-1"
+      ? yanit.includes(ifade)
+      : yanitKelimeleri.includes(ifade);
+  const olumsuzYanit = ["-1", "gelemem", "yokum", "gelemiyorum"]
+    .some(yanitIceriyor);
+  const olumluYanit = ["+1", "gelirim", "varım", "ok", "tamam"]
+    .some(yanitIceriyor);
+  if (!olumsuzYanit && !olumluYanit) return false;
+
+  const takim = davetTakiminiNormallestir(davetBekleyen.takim);
+  const slot = davetBekleyen.slot;
+  if (!takim || !/^pos_\d+$/.test(String(slot || ""))) {
+    console.error("❌ Bekleyen davetin takım veya slot bilgisi geçersiz:", davetBekleyen);
+    return true;
+  }
+
+  if (olumsuzYanit) {
+    let sonucBilgisi = null;
+    const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+      sonucBilgisi = null;
+      const mevcutDavet = hafiza?.davet_bekleyen;
+      if (
+        !mevcutDavet ||
+        oyuncuAdiAnahtari(mevcutDavet.isim) !== davetEdilenAnahtari ||
+        davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
+        mevcutDavet.slot !== slot
+      ) {
+        return;
+      }
+
+      const canliKadro = hafiza.canli_kadro;
+      if (!canliKadro) return;
+      const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
+      if (
+        !yedekler.length ||
+        oyuncuAdiAnahtari(kadroOyuncusununAdi(yedekler[0])) !== davetEdilenAnahtari
+      ) {
+        return;
+      }
+
+      const reddeden = yedekler.shift();
+      yedekler.push(reddeden);
+      const yeniDavetEdilen = yedekler.length > 1
+        ? kadroOyuncusununAdi(yedekler[0])
+        : null;
+      const yeniDavet = yeniDavetEdilen
+        ? { ...mevcutDavet, isim: yeniDavetEdilen, takim, slot }
+        : null;
+      sonucBilgisi = {
+        reddeden: kadroOyuncusununAdi(reddeden) || davetBekleyen.isim,
+        yeniDavetEdilen,
+      };
+
+      return {
+        ...hafiza,
+        canli_kadro: { ...canliKadro, yedekler },
+        davet_bekleyen: yeniDavet,
+      };
+    });
+
+    if (!sonuc.committed || !sonucBilgisi) {
+      console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen yedek kaydı değişmiş; ret yanıtı uygulanmadı.`);
+      return true;
+    }
+
+    const redMesaji = sonucBilgisi.yeniDavetEdilen
+      ? `⏭️ *${sonucBilgisi.reddeden}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${sonucBilgisi.yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
+      : "⚠️ Yedek listesinde davet edilecek başka oyuncu kalmadı.";
+    await client.sendMessage(msg.from, redMesaji);
+    return true;
+  }
+
+  const oyuncuHavuzu = await oyuncuHavuzunuGetir();
+  const oyuncu = oyuncuHavuzu.find(
+    (aday) => oyuncuAdiAnahtari(aday.isim) === davetEdilenAnahtari
+  );
+  if (!oyuncu) {
+    console.error(`❌ Davet edilen oyuncu güncel havuzda bulunamadı: ${davetBekleyen.isim}`);
+    return true;
+  }
+
+  let yerlesenOyuncu = null;
+  const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+    yerlesenOyuncu = null;
+    const mevcutDavet = hafiza?.davet_bekleyen;
+    if (
+      !mevcutDavet ||
+      oyuncuAdiAnahtari(mevcutDavet.isim) !== davetEdilenAnahtari ||
+      davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
+      mevcutDavet.slot !== slot
+    ) {
+      return;
+    }
+
+    const canliKadro = hafiza.canli_kadro;
+    if (!canliKadro?.kadro) return;
+    const kadro = {
+      ...canliKadro.kadro,
+      red: { ...(canliKadro.kadro.red || {}) },
+      white: { ...(canliKadro.kadro.white || {}) },
+    };
+    if (kadro[takim][slot]) return;
+
+    const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
+    const yedekIndex = yedekler.findIndex((yedek) =>
+      (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
+      oyuncuAdiAnahtari(kadroOyuncusununAdi(yedek)) === davetEdilenAnahtari
+    );
+    if (yedekIndex < 0) return;
+
+    yedekler.splice(yedekIndex, 1);
+    kadro[takim][slot] = oyuncu;
+    yerlesenOyuncu = oyuncu.isim;
+    return {
+      ...hafiza,
+      canli_kadro: { ...canliKadro, kadro, yedekler },
+      davet_bekleyen: null,
+    };
+  });
+
+  if (!sonuc.committed || !yerlesenOyuncu) {
+    console.log(`ℹ️ ${davetBekleyen.isim} daveti için kadro kaydı değişmiş; kabul yanıtı uygulanmadı.`);
+    return true;
+  }
+
+  await client.sendMessage(
+    msg.from,
+    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.`
+  );
+  return true;
+}
+
+async function eksiBirIsle(msg, contact = null) {
   if (msg.fromMe) return;
 
-  const contact = await msg.getContact();
+  contact = contact || await msg.getContact();
   const gonderenAdlari = [contact?.name, contact?.pushname]
     .map(oyuncuAdiAnahtari)
     .filter(Boolean);
@@ -884,11 +1064,7 @@ async function eksiBirIsle(msg) {
     if (!takim) return;
 
     kadro[takim][slot] = null;
-    const yedekler = (
-      Array.isArray(canliKadro.yedekler)
-        ? canliKadro.yedekler
-        : Object.values(canliKadro.yedekler || {})
-    ).filter(Boolean);
+    const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
     yedekler.push(oyuncu);
 
     const ilkYedek = yedekler[0];
@@ -896,7 +1072,7 @@ async function eksiBirIsle(msg) {
     const davetBekleyen = davetEdilenIsim
       ? {
           isim: davetEdilenIsim,
-          takim: takim === "red" ? "Kırmızı" : "Beyaz",
+          takim,
           slot,
         }
       : null;
