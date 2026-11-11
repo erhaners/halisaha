@@ -458,16 +458,16 @@ function sahayaDiz(kadro, sahaId, takimRenk, mod, isManuel = false) {
     if (takimRenk === "red") {
         konumlar.push({ id: "pos_0", x: 50, y: 0, s: "gk-jersey red-gk", p: manuelKadro.red["pos_0"] || null });
         if (mod === "6v6") { 
-            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: manuelKadro.red["pos_1"] || null }); 
-            konumlar.push({ id: "pos_2", x: 80, y: 32, s: "red-jersey", p: manuelKadro.red["pos_2"] || null }); 
-            konumlar.push({ id: "pos_3", x: 32, y: 54, s: "red-jersey", p: manuelKadro.red["pos_3"] || null }); 
-            konumlar.push({ id: "pos_4", x: 68, y: 54, s: "red-jersey", p: manuelKadro.red["pos_4"] || null });
+            konumlar.push({ id: "pos_1", x: 80, y: 32, s: "red-jersey", p: manuelKadro.red["pos_1"] || null });
+            konumlar.push({ id: "pos_2", x: 20, y: 32, s: "red-jersey", p: manuelKadro.red["pos_2"] || null });
+            konumlar.push({ id: "pos_3", x: 68, y: 54, s: "red-jersey", p: manuelKadro.red["pos_3"] || null });
+            konumlar.push({ id: "pos_4", x: 32, y: 54, s: "red-jersey", p: manuelKadro.red["pos_4"] || null });
         } else { 
-            konumlar.push({ id: "pos_1", x: 20, y: 32, s: "red-jersey", p: manuelKadro.red["pos_1"] || null }); 
+            konumlar.push({ id: "pos_1", x: 80, y: 32, s: "red-jersey", p: manuelKadro.red["pos_1"] || null });
             konumlar.push({ id: "pos_2", x: 50, y: 22, s: "red-jersey", p: manuelKadro.red["pos_2"] || null }); 
-            konumlar.push({ id: "pos_3", x: 80, y: 32, s: "red-jersey", p: manuelKadro.red["pos_3"] || null }); 
-            konumlar.push({ id: "pos_4", x: 32, y: 54, s: "red-jersey", p: manuelKadro.red["pos_4"] || null }); 
-            konumlar.push({ id: "pos_5", x: 68, y: 54, s: "red-jersey", p: manuelKadro.red["pos_5"] || null });
+            konumlar.push({ id: "pos_3", x: 20, y: 32, s: "red-jersey", p: manuelKadro.red["pos_3"] || null });
+            konumlar.push({ id: "pos_4", x: 68, y: 54, s: "red-jersey", p: manuelKadro.red["pos_4"] || null });
+            konumlar.push({ id: "pos_5", x: 32, y: 54, s: "red-jersey", p: manuelKadro.red["pos_5"] || null });
         }
         let fvtId = mod === "6v6" ? "pos_5" : "pos_6";
         konumlar.push({ id: fvtId, x: 50, y: 75, s: "red-jersey", p: manuelKadro.red[fvtId] || null });
