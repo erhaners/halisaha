@@ -1,3 +1,4 @@
+const botBaslangicZamani = Math.floor(Date.now() / 1000);
 const VARSAYILAN_OYUNCU = {
   anaMevki: "ORT",
   alternatifMevki: "Yok",
@@ -40,6 +41,7 @@ const firebaseConfig = {
 const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const database = getDatabase(firebaseApp);
 const mongoStore = new MongoStore({ mongoose });
+let botHeartbeatInterval = null;
 
 async function botDurumunuKaydet(durum) {
   await set(ref(database, "sistem_hafizasi/bot_durum"), durum);
@@ -278,50 +280,54 @@ function takimi3_2_1Diz(takim) {
   );
   const kalanOyuncular = [...takim];
 
-  const oyuncuSec = (uygunMu) => {
-    const index = kalanOyuncular.findIndex(uygunMu);
-    return index < 0 ? null : kalanOyuncular.splice(index, 1)[0];
+  const yuvayaYerles = (slot, puanlayici, oyuncuPuani) => {
+    const uygunOyuncular = kalanOyuncular
+      .filter((oyuncu) => puanlayici(oyuncu, slot))
+      .sort((a, b) => oyuncuPuani(b, slot) - oyuncuPuani(a, slot));
+    if (uygunOyuncular.length === 0) return;
+
+    kadro[slot.id] = uygunOyuncular[0];
+    kalanOyuncular.splice(kalanOyuncular.indexOf(uygunOyuncular[0]), 1);
   };
 
+  // Aşama 1: Oyuncuları ana mevkilerindeki yuvalara yerleştir.
   for (const slot of slotlar) {
-    kadro[slot.id] = oyuncuSec(
-      (oyuncu) => mevkiKodunuNormallestir(oyuncu.anaMevki) === slot.kod
+    yuvayaYerles(
+      slot,
+      (oyuncu) => mevkiKodunuNormallestir(oyuncu.anaMevki) === slot.kod,
+      (oyuncu) => genelPuanHesapla(oyuncu)
     );
   }
 
+  // Aşama 2: Boş kalan yuvaları oyuncuların alternatif mevkileriyle doldur.
   for (const slot of slotlar) {
     if (kadro[slot.id]) continue;
-    kadro[slot.id] = oyuncuSec(
-      (oyuncu) => mevkiGrubunuBul(oyuncu.anaMevki) === slot.grup
-    );
-  }
-
-  for (const slot of slotlar) {
-    if (kadro[slot.id]) continue;
-    kadro[slot.id] = oyuncuSec(
+    yuvayaYerles(
+      slot,
       (oyuncu) => mevkiKodunuNormallestir(
         oyuncu.alternatifMevki || oyuncu.alternatifPosition
-      ) === slot.kod
+      ) === slot.kod,
+      (oyuncu) => mevkiyeGorePuanHesapla(oyuncu, slot.kod)
     );
   }
 
-  for (const slot of slotlar) {
-    if (kadro[slot.id]) continue;
-    kadro[slot.id] = oyuncuSec(
-      (oyuncu) => mevkiGrubunuBul(
-        oyuncu.alternatifMevki || oyuncu.alternatifPosition
-      ) === slot.grup
-    );
-  }
+  // Aşama 3: Kalan oyuncu-yuva eşleşmelerinin en iyi puanlı olanını seç.
+  while (kalanOyuncular.length > 0) {
+    const bosSlotlar = slotlar.filter((slot) => !kadro[slot.id]);
+    if (bosSlotlar.length === 0) break;
 
-  for (const slot of slotlar) {
-    if (kadro[slot.id] || kalanOyuncular.length === 0) continue;
-    kalanOyuncular.sort(
-      (a, b) =>
-        mevkiyeGorePuanHesapla(b, slot.kod) -
-        mevkiyeGorePuanHesapla(a, slot.kod)
-    );
-    kadro[slot.id] = kalanOyuncular.shift();
+    let enIyiEslesme = null;
+    for (const slot of bosSlotlar) {
+      for (const oyuncu of kalanOyuncular) {
+        const puan = mevkiyeGorePuanHesapla(oyuncu, slot.kod);
+        if (!enIyiEslesme || puan > enIyiEslesme.puan) {
+          enIyiEslesme = { slot, oyuncu, puan };
+        }
+      }
+    }
+
+    kadro[enIyiEslesme.slot.id] = enIyiEslesme.oyuncu;
+    kalanOyuncular.splice(kalanOyuncular.indexOf(enIyiEslesme.oyuncu), 1);
   }
 
   return kadro;
@@ -561,9 +567,20 @@ client.on("remote_session_saved", () => {
 });
 
 client.on("ready", async () => {
+  if (botHeartbeatInterval) clearInterval(botHeartbeatInterval);
+  const heartbeatYaz = async () => {
+    try {
+      await set(ref(database, "sistem_hafizasi/son_gorulme"), Date.now());
+    } catch (error) {
+      console.error("❌ Bot heartbeat Firebase'e yazılamadı:", error);
+    }
+  };
+  botHeartbeatInterval = setInterval(heartbeatYaz, 30000);
+
   try {
     await canliQrKodunuTemizle();
     await botDurumunuKaydet("CONNECTED");
+    await heartbeatYaz();
   } catch (error) {
     console.error("❌ Bot bağlantı durumu Firebase'e yazılamadı:", error);
   }
@@ -571,6 +588,8 @@ client.on("ready", async () => {
 });
 
 async function mesajıIsle(msg) {
+  if (msg.timestamp < botBaslangicZamani) return;
+
   console.log(`📡 [YENİ MESAJ GELDİ] -> msg.from: "${msg?.from}" | Gövde: "${String(msg?.body || "").substring(0, 15)}..."`);
 
   if (!msg || !msg.from || msg.from.includes('broadcast')) return;

@@ -49,6 +49,11 @@ h1, h3 {
     margin: 8px 0;
 }
 
+.bot-connection-status--offline {
+    color: #ff5555 !important;
+    font-weight: 700;
+}
+
 .bot-connection-panel img {
     background: #fff;
     border: 1px solid #555;

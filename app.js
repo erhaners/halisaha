@@ -23,6 +23,7 @@ let ilkKadroYuklendiMi = false;
 let botDurumu = null;
 let botQrKodu = null;
 let botQrGorseli = null;
+let botSonGorulme = null;
 
 function mevkiKoduNormallestir(mevki) {
     const kod = String(mevki || "").trim().toLocaleUpperCase("tr-TR");
@@ -206,6 +207,20 @@ function botBaglantisiniDinle() {
         qrYardim.hidden = true;
         qrResmi.removeAttribute("src");
 
+        const heartbeatGuncelMi = Number.isFinite(botSonGorulme)
+            && Date.now() - botSonGorulme <= 60000;
+        if (botDurumu === "DISCONNECTED" || !heartbeatGuncelMi) {
+            durumAlani.textContent = "Bot bağlantısı kesildi veya çevrimdışı";
+            durumAlani.classList.add("bot-connection-status--offline");
+            if (botQrKodu && botQrGorseli) {
+                qrResmi.src = botQrGorseli;
+                qrResmi.hidden = false;
+                qrYardim.hidden = false;
+            }
+            return;
+        }
+        durumAlani.classList.remove("bot-connection-status--offline");
+
         if (botDurumu === "CONNECTED") {
             durumAlani.textContent = "✅ Bot Canlı ve Grupları Dinliyor";
             return;
@@ -223,9 +238,7 @@ function botBaglantisiniDinle() {
             return;
         }
 
-        durumAlani.textContent = botDurumu === "DISCONNECTED"
-            ? "🔴 Bot bağlantısı kesildi veya çevrimdışı."
-            : "⏳ Bot durumu bekleniyor...";
+        durumAlani.textContent = "⏳ Bot durumu bekleniyor...";
     };
 
     database.ref("sistem_hafizasi/canli_qr").on("value", (snapshot) => {
@@ -251,6 +264,17 @@ function botBaglantisiniDinle() {
         console.error("❌ Bot bağlantı durumu Firebase'den okunamadı:", error);
         durumAlani.textContent = "⚠️ Bot bağlantı durumu okunamadı.";
     });
+
+    database.ref("sistem_hafizasi/son_gorulme").on("value", (snapshot) => {
+        botSonGorulme = snapshot.val();
+        paneliGuncelle();
+    }, (error) => {
+        console.error("❌ Bot heartbeat Firebase'den okunamadı:", error);
+        botSonGorulme = null;
+        paneliGuncelle();
+    });
+
+    setInterval(paneliGuncelle, 10000);
 }
 
 function firebasedenAnlikKadroKaydet() {
