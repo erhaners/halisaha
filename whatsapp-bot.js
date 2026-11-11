@@ -42,6 +42,8 @@ const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConf
 const database = getDatabase(firebaseApp);
 const mongoStore = new MongoStore({ mongoose });
 let botHeartbeatInterval = null;
+let yoklamaSchedulerInterval = null;
+let sonYoklamaTarihi = null;
 
 async function botDurumunuKaydet(durum) {
   await set(ref(database, "sistem_hafizasi/bot_durum"), durum);
@@ -52,6 +54,131 @@ async function canliQrKodunuTemizle() {
     remove(ref(database, "sistem_hafizasi/canli_qr")),
     remove(ref(database, "sistem_hafizasi/canli_qr_gorsel")),
   ]);
+}
+
+function istanbulSaatiniAl(tarih = new Date()) {
+  const parcalar = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Europe/Istanbul",
+    weekday: "long",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(tarih);
+  const degerler = Object.fromEntries(
+    parcalar
+      .filter((parca) => parca.type !== "literal")
+      .map((parca) => [parca.type, parca.value])
+  );
+
+  return {
+    haftaGunu: degerler.weekday,
+    saat: Number(degerler.hour),
+    dakika: Number(degerler.minute),
+    tarih: `${degerler.year}-${degerler.month}-${degerler.day}`,
+  };
+}
+
+function oyuncuIsimleriniAl(oyuncular) {
+  return Object.values(oyuncular || {})
+    .filter(Boolean)
+    .map((oyuncu) => (typeof oyuncu === "string" ? oyuncu : oyuncu.isim))
+    .filter((isim) => typeof isim === "string" && isim.trim())
+    .map((isim) => isim.trim());
+}
+
+function yoklamaMesajiniOlustur(kadro) {
+  const kirmiziOyuncular = oyuncuIsimleriniAl(kadro.kadro.red);
+  const beyazOyuncular = oyuncuIsimleriniAl(kadro.kadro.white);
+  const yedekler = oyuncuIsimleriniAl(kadro.yedekler);
+
+  return `⚽ *Maç Tamamlandı! Gelecek Hafta Yoklaması Başladı* 📋
+
+Bu haftanın son kadrosu aşağıdadır. Gelecek hafta Perşembe maçına *gelemeyecek* olanlar lütfen gruba *-1* yazsın:
+
+🔴 *KIRMIZI TAKIM*
+${kirmiziOyuncular.join("\n") || "Oyuncu yok"}
+
+⚪ *BEYAZ TAKIM*
+${beyazOyuncular.join("\n") || "Oyuncu yok"}
+
+⏳ *YEDEK LİSTESİ*
+${yedekler.join("\n") || "Yedek oyuncu yok"}
+
+Not: -1 yazanların yerine sıradaki yedek oyuncular otomatik davet edilecektir.`;
+}
+
+async function haftalikYoklamaGonder() {
+  const kadroSnapshot = await get(ref(database, "sistem_hafizasi/canli_kadro"));
+  const kadro = kadroSnapshot.val();
+  if (!kadro?.kadro) {
+    console.log("ℹ️ Haftalık yoklama gönderilmedi: aktif kadro bulunamadı.");
+    return;
+  }
+
+  const kirmiziOyuncular = oyuncuIsimleriniAl(kadro.kadro.red);
+  const beyazOyuncular = oyuncuIsimleriniAl(kadro.kadro.white);
+  if (kirmiziOyuncular.length + beyazOyuncular.length === 0) {
+    console.log("ℹ️ Haftalık yoklama gönderilmedi: aktif kadro boş.");
+    return;
+  }
+
+  const sohbetler = await client.getChats();
+  const hedefGruplar = [
+    { ad: "Bot Test", sohbet: sohbetler.find((sohbet) => sohbet.isGroup && /bot\s*test/i.test(sohbet.name || "")) },
+    { ad: "Has Kadro", sohbet: sohbetler.find((sohbet) => sohbet.isGroup && /has\s*kadro/i.test(sohbet.name || "")) },
+  ];
+  const mesaj = yoklamaMesajiniOlustur(kadro);
+  let enAzBirMesajGonderildi = false;
+
+  for (const hedef of hedefGruplar) {
+    if (!hedef.sohbet) {
+      console.error(`❌ Haftalık yoklama hedef grubu bulunamadı: ${hedef.ad}`);
+      continue;
+    }
+
+    try {
+      await client.sendMessage(hedef.sohbet.id._serialized, mesaj);
+      enAzBirMesajGonderildi = true;
+      console.log(`✅ Haftalık yoklama gönderildi: ${hedef.ad}`);
+    } catch (error) {
+      console.error(`❌ Haftalık yoklama gönderilemedi (${hedef.ad}):`, error);
+    }
+  }
+
+  if (!enAzBirMesajGonderildi) {
+    throw new Error("Haftalık yoklama hiçbir hedef gruba gönderilemedi.");
+  }
+
+  await set(ref(database, "sistem_hafizasi/yoklama_durumu"), {
+    aktif: true,
+    baslangicZamani: Date.now(),
+  });
+}
+
+function haftalikYoklamaZamanlayicisiniBaslat() {
+  if (yoklamaSchedulerInterval) clearInterval(yoklamaSchedulerInterval);
+
+  yoklamaSchedulerInterval = setInterval(async () => {
+    const simdi = istanbulSaatiniAl();
+    if (
+      simdi.haftaGunu !== "Thursday" ||
+      simdi.saat !== 22 ||
+      simdi.dakika !== 30 ||
+      sonYoklamaTarihi === simdi.tarih
+    ) {
+      return;
+    }
+
+    sonYoklamaTarihi = simdi.tarih;
+    try {
+      await haftalikYoklamaGonder();
+    } catch (error) {
+      console.error("❌ Haftalık yoklama görevi başarısız oldu:", error);
+    }
+  }, 30000);
 }
 
 function temizleIsim(raw) {
@@ -568,6 +695,7 @@ client.on("remote_session_saved", () => {
 
 client.on("ready", async () => {
   if (botHeartbeatInterval) clearInterval(botHeartbeatInterval);
+  haftalikYoklamaZamanlayicisiniBaslat();
   const heartbeatYaz = async () => {
     try {
       await set(ref(database, "sistem_hafizasi/son_gorulme"), Date.now());
