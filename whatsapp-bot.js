@@ -19,7 +19,7 @@ const { Client, RemoteAuth } = require("whatsapp-web.js");
 const { MongoStore } = require("wwebjs-mongo");
 const mongoose = require("mongoose");
 const { initializeApp, getApps } = require("firebase/app");
-const { getDatabase, ref, get, set, remove } = require("firebase/database");
+const { getDatabase, ref, get, set, remove, runTransaction } = require("firebase/database");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -730,6 +730,15 @@ async function mesajıIsle(msg) {
   const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid", "61027207114891@lid"];
   if (!izinVerilenGrupIDs.includes(msg.from)) return;
 
+  if (body.trim() === "-1") {
+    try {
+      await eksiBirIsle(msg);
+    } catch (error) {
+      console.error("❌ -1 kadro değişikliği işlenemedi:", error);
+    }
+    return;
+  }
+
   if (body.toUpperCase().trim() === "BOT AKTİF Mİ?") {
     console.log("🎲 Kalp atışı kontrolü tetiklendi. Yanıt fırlatılıyor...");
     await client.sendMessage(msg.from, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden 7/24 (08:30 - 22:00) dinlemedeyim. Komutlarınızı bekliyorum.");
@@ -804,6 +813,123 @@ ${yedekMesaji || "Yedek oyuncu yok"}
   } catch (error) {
     console.error("❌ Kadro işleme adımlarında hata oluştu:", error);
   }
+}
+
+function oyuncuAdiAnahtari(isim) {
+  return String(isim || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleUpperCase("tr-TR");
+}
+
+function kadroOyuncusununAdi(oyuncu) {
+  return typeof oyuncu === "string" ? oyuncu : oyuncu?.isim;
+}
+
+async function eksiBirIsle(msg) {
+  if (msg.fromMe) return;
+
+  const contact = await msg.getContact();
+  const gonderenAdlari = [contact?.name, contact?.pushname]
+    .map(oyuncuAdiAnahtari)
+    .filter(Boolean);
+  if (gonderenAdlari.length === 0) {
+    console.log("ℹ️ -1 gönderen kişinin rehber veya profil adı bulunamadı.");
+    return;
+  }
+
+  const oyuncuHavuzu = await oyuncuHavuzunuGetir();
+  const oyuncu = oyuncuHavuzu.find((aday) =>
+    gonderenAdlari.includes(oyuncuAdiAnahtari(aday.isim))
+  );
+  if (!oyuncu) {
+    console.log(`ℹ️ -1 gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
+    return;
+  }
+
+  const oyuncuAdlari = new Set([
+    ...gonderenAdlari,
+    oyuncuAdiAnahtari(oyuncu.isim),
+  ]);
+  let degisiklik = null;
+  const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+    degisiklik = null;
+    if (!hafiza?.canli_kadro?.kadro) return;
+
+    const canliKadro = hafiza.canli_kadro;
+    const kadro = {
+      ...canliKadro.kadro,
+      red: { ...(canliKadro.kadro.red || {}) },
+      white: { ...(canliKadro.kadro.white || {}) },
+    };
+    let cikanOyuncu = null;
+    let takim = null;
+    let slot = null;
+
+    for (const takimAdi of ["red", "white"]) {
+      const eslesme = Object.entries(kadro[takimAdi]).find(([, kadroOyuncusu]) => {
+        if (!kadroOyuncusu) return false;
+        if (kadroOyuncusu.id !== undefined && String(kadroOyuncusu.id) === String(oyuncu.id)) {
+          return true;
+        }
+        return oyuncuAdlari.has(oyuncuAdiAnahtari(kadroOyuncusununAdi(kadroOyuncusu)));
+      });
+      if (eslesme) {
+        takim = takimAdi;
+        [slot, cikanOyuncu] = eslesme;
+        break;
+      }
+    }
+
+    if (!takim) return;
+
+    kadro[takim][slot] = null;
+    const yedekler = (
+      Array.isArray(canliKadro.yedekler)
+        ? canliKadro.yedekler
+        : Object.values(canliKadro.yedekler || {})
+    ).filter(Boolean);
+    yedekler.push(oyuncu);
+
+    const ilkYedek = yedekler[0];
+    const davetEdilenIsim = kadroOyuncusununAdi(ilkYedek);
+    const davetBekleyen = davetEdilenIsim
+      ? {
+          isim: davetEdilenIsim,
+          takim: takim === "red" ? "Kırmızı" : "Beyaz",
+          slot,
+        }
+      : null;
+
+    degisiklik = {
+      cikanIsim: kadroOyuncusununAdi(cikanOyuncu) || oyuncu.isim,
+      davetEdilenIsim,
+      takim,
+      slot,
+    };
+    return {
+      ...hafiza,
+      canli_kadro: { ...canliKadro, kadro, yedekler },
+      davet_bekleyen: davetBekleyen,
+    };
+  });
+
+  if (!sonuc.committed || !degisiklik) {
+    console.log(`ℹ️ -1 gönderen oyuncu aktif kadroda bulunamadı: ${oyuncu.isim}`);
+    return;
+  }
+
+  if (!degisiklik.davetEdilenIsim) return;
+
+  const mesaj = `🚨 *Kadroda Değişiklik Var!*
+
+❌ *${degisiklik.cikanIsim}* bu hafta aramızda olamayacak ve yedek listesinin sonuna eklendi.
+
+🎉 *Hey ${degisiklik.davetEdilenIsim}, sana yer açıldı!* Bu fırsatı kaçırmak istemezsin, sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`;
+  await client.sendMessage(msg.from, mesaj);
+  console.log(
+    `✅ ${degisiklik.cikanIsim} kadrodan çıkarıldı; ${degisiklik.davetEdilenIsim} davet edildi (${degisiklik.takim}, ${degisiklik.slot}).`
+  );
 }
 
 

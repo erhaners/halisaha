@@ -19,6 +19,7 @@ let database;
 let oyuncular = [];
 let duzenlenenId = null;
 let manuelKadro = { red: {}, white: {} };
+let canliYedekler = [];
 let ilkKadroYuklendiMi = false;
 let botDurumu = null;
 let botQrKodu = null;
@@ -161,6 +162,7 @@ function veriTabaniniDinle() {
         macGecmisiniDinle();
         
         if (ilkKadroYuklendiMi) {
+            kadroyuOyuncuHavuzuylaSenkronla();
             const mod = document.querySelector('input[name="matchMode"]:checked').value;
             sahayaDiz(null, "redTeamPitch", "red", mod, true);
             sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
@@ -173,6 +175,7 @@ function canliKadroDinleyicisiniBaslat() {
         const kayitliVeri = snapshot.val();
         if (kayitliVeri && kayitliVeri.kadro) {
             manuelKadro = kayitliVeri.kadro;
+            canliYedekler = kayitliVeri.yedekler || [];
             const mod = kayitliVeri.mod || "6v6";
             
             const radio = document.querySelector(`input[name="matchMode"][value="${mod}"]`);
@@ -181,17 +184,32 @@ function canliKadroDinleyicisiniBaslat() {
             ilkKadroYuklendiMi = true;
             
             if (oyuncular.length > 0) {
+                kadroyuOyuncuHavuzuylaSenkronla();
                 sahayaDiz(null, "redTeamPitch", "red", mod, true);
                 sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
             }
         } else {
             manuelKadro = { red: {}, white: {} };
+            canliYedekler = [];
             const mod = document.querySelector('input[name="matchMode"][value="6v6"]').value;
             if (oyuncular.length > 0) {
                 sahayaDiz(null, "redTeamPitch", "red", mod, true);
                 sahayaDiz(null, "whiteTeamPitch", "white", mod, true);
             }
         }
+    });
+}
+
+function kadroyuOyuncuHavuzuylaSenkronla() {
+    ["red", "white"].forEach((takim) => {
+        Object.entries(manuelKadro[takim] || {}).forEach(([slot, kadroOyuncusu]) => {
+            if (!kadroOyuncusu || kadroOyuncusu.id === undefined) return;
+
+            const guncelOyuncu = oyuncular.find(
+                (oyuncu) => String(oyuncu.id) === String(kadroOyuncusu.id)
+            );
+            if (guncelOyuncu) manuelKadro[takim][slot] = guncelOyuncu;
+        });
     });
 }
 
@@ -281,7 +299,8 @@ function firebasedenAnlikKadroKaydet() {
     const mod = document.querySelector('input[name="matchMode"]:checked').value;
     const veri = {
         kadro: manuelKadro,
-        mod: mod
+        mod: mod,
+        yedekler: canliYedekler
     };
     database.ref("sistem_hafizasi/canli_kadro").set(veri);
 }
