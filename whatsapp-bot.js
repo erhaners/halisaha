@@ -624,7 +624,10 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
   puppeteer: {
-    headless: false,
+    headless: true,
+    executablePath: require('fs').existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe')
+      ? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
+      : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
     protocolTimeout: 60000,
     args: [
       '--no-sandbox',
