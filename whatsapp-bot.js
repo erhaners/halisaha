@@ -623,6 +623,10 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
+  webVersionCache: {
+    type: 'remote',
+    remotePath: 'https://raw.githubusercontent.com/wwebjs/wa-version/main/html/{version}.html',
+  },
   puppeteer: {
     headless: true,
     executablePath: require('fs').existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe')
@@ -655,6 +659,10 @@ const client = new Client({
   },
 });
 
+let whatsappAuthenticated = false;
+let reconnectTimer = null;
+let reconnectInProgress = false;
+
 client.on("qr", async (qr) => {
   console.log("QR kod üretildi. Telefonunuzdan taratın:");
   qrcode.generate(qr, { small: true });
@@ -673,6 +681,12 @@ client.on("qr", async (qr) => {
 });
 
 client.on("authenticated", () => {
+  whatsappAuthenticated = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  console.log("⏳ WhatsApp Web arayüzü yükleniyor, lütfen bekleyin...");
   console.log("✅ WhatsApp kimlik doğrulandı; yerel oturum kaydedildi.");
 });
 
@@ -1096,6 +1110,7 @@ client.on("message", mesajıIsle);
 client.on("message_create", mesajıIsle);
 
 client.on("auth_failure", async (msg) => {
+  whatsappAuthenticated = false;
   console.error("❌ WhatsApp kimlik doğrulama hatası:", msg);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
@@ -1105,11 +1120,8 @@ client.on("auth_failure", async (msg) => {
   });
 });
 
-let reconnectTimer = null;
-let reconnectInProgress = false;
-
 function yenidenBaglanmayiPlanla() {
-  if (reconnectTimer || reconnectInProgress) return;
+  if (whatsappAuthenticated || reconnectTimer || reconnectInProgress) return;
 
   reconnectTimer = setTimeout(async () => {
     reconnectTimer = null;
@@ -1121,7 +1133,7 @@ function yenidenBaglanmayiPlanla() {
       await client.initialize();
       console.log("🔄 WhatsApp istemcisi yeniden başlatıldı.");
     } catch (error) {
-      retryNeeded = true;
+      retryNeeded = !whatsappAuthenticated;
       console.error("❌ WHATSAPP YENİDEN BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp yeniden başlatılamadı:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
@@ -1129,12 +1141,13 @@ function yenidenBaglanmayiPlanla() {
       });
     } finally {
       reconnectInProgress = false;
-      if (retryNeeded) yenidenBaglanmayiPlanla();
+      if (retryNeeded && !whatsappAuthenticated) yenidenBaglanmayiPlanla();
     }
   }, 5000);
 }
 
 client.on("disconnected", async (reason) => {
+  whatsappAuthenticated = false;
   console.log("⚠️ WhatsApp bağlantısı koptu:", reason);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ QR kodu Firebase'den temizlenemedi:", error);
@@ -1166,7 +1179,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 async function botuBaslat() {
-  while (true) {
+  while (!whatsappAuthenticated) {
     try {
       console.log("⏳ 1. Firebase QR temizleniyor...");
       await canliQrKodunuTemizle();
@@ -1176,6 +1189,10 @@ async function botuBaslat() {
       await client.initialize();
       return;
     } catch (error) {
+      if (whatsappAuthenticated) {
+        console.error("❌ WhatsApp kimlik doğrulandı; başlangıç yeniden denemesi iptal edildi:", error);
+        return;
+      }
       console.error("❌ BOT BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp bot başlatılamadı; 5 saniye sonra yeniden denenecek:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
