@@ -15,19 +15,12 @@ const VARSAYILAN_OYUNCU = {
 const express = require("express");
 const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
-const { Client, RemoteAuth } = require("whatsapp-web.js");
-const { MongoStore } = require("wwebjs-mongo");
-const mongoose = require("mongoose");
+const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
 const { getDatabase, ref, get, set, remove, runTransaction } = require("firebase/database");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const isRender =
-  process.env.PORT !== undefined ||
-  process.env.RENDER === "true" ||
-  process.platform === "linux";
-
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
   authDomain: "halisaha-taktik.firebaseapp.com",
@@ -40,7 +33,6 @@ const firebaseConfig = {
 
 const firebaseApp = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 const database = getDatabase(firebaseApp);
-const mongoStore = new MongoStore({ mongoose });
 let botHeartbeatInterval = null;
 let yoklamaSchedulerInterval = null;
 let sonYoklamaTarihi = null;
@@ -630,17 +622,9 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 }
 
 const client = new Client({
-  authStrategy: new RemoteAuth({
-    clientId: "halisaha-bot",
-    dataPath: process.cwd(),
-    store: mongoStore,
-    backupSyncIntervalMs: 600000,
-  }),
+  authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
   puppeteer: {
-    headless: isRender ? true : "new",
-    executablePath: isRender
-      ? null
-      : 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    headless: false,
     protocolTimeout: 60000,
     args: [
       '--no-sandbox',
@@ -686,11 +670,7 @@ client.on("qr", async (qr) => {
 });
 
 client.on("authenticated", () => {
-  console.log("✅ WhatsApp kimlik doğrulandı; kalıcı MongoDB oturum yedeği bağlantı hazır olunca alınacak.");
-});
-
-client.on("remote_session_saved", () => {
-  console.log("🎉 Oturum yedeği MongoDB Atlas veritabanına başarıyla kilitlendi!");
+  console.log("✅ WhatsApp kimlik doğrulandı; yerel oturum kaydedildi.");
 });
 
 client.on("ready", async () => {
@@ -1117,9 +1097,6 @@ client.on("auth_failure", async (msg) => {
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
   });
-  await mongoStore.delete({ session: "RemoteAuth-halisaha-bot" }).catch((error) => {
-    console.error("❌ Geçersiz WhatsApp oturumu MongoDB'den silinemedi:", error);
-  });
   await botDurumunuKaydet("DISCONNECTED").catch((error) => {
     console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
   });
@@ -1137,17 +1114,12 @@ function yenidenBaglanmayiPlanla() {
     let retryNeeded = false;
 
     try {
-      if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect(process.env.MONGODB_URI);
-        console.log("✅ MongoDB Atlas bağlantısı yeniden kuruldu.");
-      }
-
       await client.destroy();
       await client.initialize();
       console.log("🔄 WhatsApp istemcisi yeniden başlatıldı.");
     } catch (error) {
       retryNeeded = true;
-      console.error("❌ BULUTTA BAŞLATMA HATASI:", error);
+      console.error("❌ WHATSAPP YENİDEN BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp yeniden başlatılamadı:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
         console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
@@ -1191,37 +1163,23 @@ process.on("unhandledRejection", (reason) => {
 });
 
 async function botuBaslat() {
-  const mongoUri = process.env.MONGODB_URI;
-  if (!mongoUri) {
-    console.error("❌ MONGODB_URI ortam değişkeni tanımlı değil; WhatsApp botu başlatılmadı.");
-    await botDurumunuKaydet("DISCONNECTED").catch((error) => {
-      console.error("❌ Bot durumu Firebase'e yazılamadı:", error);
-    });
-    process.exitCode = 1;
-    return;
-  }
-
   while (true) {
     try {
-      if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect(mongoUri);
-        console.log("✅ MongoDB Atlas bağlantısı kuruldu.");
-      }
+      console.log("⏳ 1. Firebase QR temizleniyor...");
       await canliQrKodunuTemizle();
+      console.log("⏳ 2. Firebase durum güncelleniyor...");
       await botDurumunuKaydet("DISCONNECTED");
+      console.log("⏳ 3. WhatsApp Web ve Chromium başlatılıyor...");
       await client.initialize();
       return;
     } catch (error) {
-      console.error("❌ BULUTTA BAŞLATMA HATASI:", error);
+      console.error("❌ BOT BAŞLATMA HATASI:", error);
       console.error("❌ WhatsApp bot başlatılamadı; 5 saniye sonra yeniden denenecek:", error);
       await botDurumunuKaydet("DISCONNECTED").catch((durumHatasi) => {
         console.error("❌ Bot durumu Firebase'e yazılamadı:", durumHatasi);
       });
       await client.destroy().catch((temizlemeHatasi) => {
         console.error("❌ WhatsApp istemcisi yeniden başlatma öncesi kapatılamadı:", temizlemeHatasi);
-      });
-      await mongoose.disconnect().catch((mongoHatasi) => {
-        console.error("❌ MongoDB bağlantısı kapatılamadı:", mongoHatasi);
       });
       await new Promise((resolve) => setTimeout(resolve, 5000));
     }

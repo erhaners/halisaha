@@ -1,5 +1,6 @@
 ﻿node_modules/
 .wwebjs_cache/
+.cache/
 whatsapp-session/
 .wwebjs_auth/
 RemoteAuth-*/

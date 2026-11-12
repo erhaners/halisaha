@@ -111,13 +111,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 ```
 
-### 3.4 WhatsApp uzaktan oturum yedeği
+### 3.4 WhatsApp yerel oturumu
 
-- `whatsapp-bot.js`, resmi `wwebjs-mongo` `MongoStore` adaptörü ve `RemoteAuth` kullanır. WhatsApp profil arşivleri MongoDB GridFS'te tutulur.
-- Render ortamında `MONGODB_URI` secret/environment variable olarak tanımlanmalıdır. Değer MongoDB Atlas bağlantı dizesidir; kaynak koda veya Firebase'e eklenmemelidir.
-- `MongoStore` arşivi geçerli çalışma dizininden okuduğu için `RemoteAuth.dataPath` `process.cwd()` olarak ayarlanmıştır. Profil ve arşiv dosyaları `.gitignore` ile Git dışında tutulur.
-- `RemoteAuth` için sabit `clientId: "halisaha-bot"` ve `backupSyncIntervalMs: 600000` kullanılır. `clientId` değişikliği MongoDB'deki oturum adını değiştirdiğinden, önceki `halisaha` oturum arşivi otomatik taşınmaz ve yeni kimlikle ilk bağlantıda QR taraması gerekebilir.
-- MongoDB'de henüz oturum arşivi yoksa ilk dağıtımda QR bir kez taratılır. `RemoteAuth` yedeği ilk bağlantıda bir dakika sonra; daha sonra on dakikada bir oluşturur. Sonraki yeniden başlatmalar MongoDB'deki arşivi kullanır.
+- `whatsapp-bot.js`, `LocalAuth` ile WhatsApp oturumunu yerel diskte `.wwebjs_auth/session-halisaha-bot` klasöründe saklar. Bu klasör `.gitignore` ile Git dışında tutulur.
+- İlk çalıştırmada QR kod bir kez taratılır; sonraki başlatmalarda yerel oturum kullanılır. MongoDB veya `MONGODB_URI` gerekmez.
+- Bot `node whatsapp-bot.js` veya `baslat.bat` ile başlatılabilir.
 - WhatsApp bağlantısı kesilirse beş saniyelik gecikmeyle yeniden başlatma denenir; bu gecikme mevcut istemcinin kapatma işlemiyle yeniden başlatmanın çakışmasını önler.
 
 ## 4) Uygulama Mantığına Genel Bakış
