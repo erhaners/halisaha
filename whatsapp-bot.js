@@ -623,10 +623,6 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 
 const client = new Client({
   authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
-  webVersionCache: {
-    type: 'remote',
-    remotePath: 'https://raw.githubusercontent.com/wwebjs/wa-version/main/html/{version}.html',
-  },
   puppeteer: {
     headless: true,
     executablePath: require('fs').existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe')
@@ -713,6 +709,7 @@ client.on("ready", async () => {
 });
 
 async function mesajıIsle(msg) {
+  console.log("📥 HAM SİNYAL:", msg.from, msg.body?.substring(0, 20));
   if (msg.timestamp < botBaslangicZamani) return;
 
   console.log(`📡 [YENİ MESAJ GELDİ] -> msg.from: "${msg?.from}" | Gövde: "${String(msg?.body || "").substring(0, 15)}..."`);
