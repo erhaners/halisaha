@@ -84,7 +84,6 @@ function oyuncuIsimleriniAl(oyuncular) {
 function yoklamaMesajiniOlustur(kadro) {
   const kirmiziOyuncular = oyuncuIsimleriniAl(kadro.kadro.red);
   const beyazOyuncular = oyuncuIsimleriniAl(kadro.kadro.white);
-  const yedekler = oyuncuIsimleriniAl(kadro.yedekler);
 
   return `⚽ *Maç Tamamlandı! Gelecek Hafta Yoklaması Başladı* 📋
 
@@ -95,9 +94,6 @@ ${kirmiziOyuncular.join("\n") || "Oyuncu yok"}
 
 ⚪ *BEYAZ TAKIM*
 ${beyazOyuncular.join("\n") || "Oyuncu yok"}
-
-⏳ *YEDEK LİSTESİ*
-${yedekler.join("\n") || "Yedek oyuncu yok"}
 
 Not: -1 yazanların yerine sıradaki yedek oyuncular otomatik davet edilecektir.`;
 }
@@ -158,7 +154,7 @@ function haftalikYoklamaZamanlayicisiniBaslat() {
     if (
       simdi.haftaGunu !== "Thursday" ||
       simdi.saat !== 22 ||
-      simdi.dakika !== 30 ||
+      simdi.dakika !== 15 ||
       sonYoklamaTarihi === simdi.tarih
     ) {
       return;
@@ -718,6 +714,7 @@ async function mesajıIsle(msg) {
 
   const body = typeof msg.body === "string" ? msg.body : "";
   if (!body.trim()) return;
+  const normalizeEdilmisYanit = body.trim().toLocaleLowerCase("tr-TR");
 
   if (msg.fromMe && (body.includes("Akıllı Kadro Dağıtımı") || body.includes("KIRMIZI TAKIM"))) return;
 
@@ -745,11 +742,21 @@ async function mesajıIsle(msg) {
     }
   }
 
-  if (body.trim() === "-1") {
+  if (olumsuzYanitMi(normalizeEdilmisYanit)) {
     try {
       await eksiBirIsle(msg, contact);
     } catch (error) {
-      console.error("❌ -1 kadro değişikliği işlenemedi:", error);
+      console.error("❌ Olumsuz yanıt kadro değişikliği işlenemedi:", error);
+    }
+    return;
+  }
+
+  if (olumluYanitMi(normalizeEdilmisYanit)) {
+    try {
+      contact = contact || await msg.getContact();
+      await artiBirIsle(msg, contact);
+    } catch (error) {
+      console.error("❌ Katılma isteği işlenemedi:", error);
     }
     return;
   }
@@ -849,6 +856,20 @@ function yedekleriDiziOlarakAl(yedekler) {
   ).filter(Boolean);
 }
 
+function olumsuzYanitMi(yanit) {
+  return ["-1", "_1", "-"].includes(yanit) ||
+    ["gelemiyorum", "gelemem", "yokum", "katılamayacağım"].some((ifade) =>
+      yanit.includes(ifade)
+    );
+}
+
+function olumluYanitMi(yanit) {
+  return ["+1", "+", "+ 1"].includes(yanit) ||
+    ["beni de ekle", "gelirim", "varım", "ben de varım", "kadroya ekle"].some((ifade) =>
+      yanit.includes(ifade)
+    );
+}
+
 function davetTakiminiNormallestir(takim) {
   const takimAnahtari = String(takim || "").trim().toLowerCase();
   if (takimAnahtari === "red" || takimAnahtari === "kırmızı") return "red";
@@ -867,14 +888,9 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
 
   const yanit = body.trim().toLocaleLowerCase("tr-TR");
   const yanitKelimeleri = yanit.match(/[a-zçğıöşü0-9+-]+/g) || [];
-  const yanitIceriyor = (ifade) =>
-    ifade === "+1" || ifade === "-1"
-      ? yanit.includes(ifade)
-      : yanitKelimeleri.includes(ifade);
-  const olumsuzYanit = ["-1", "gelemem", "yokum", "gelemiyorum"]
-    .some(yanitIceriyor);
-  const olumluYanit = ["+1", "gelirim", "varım", "ok", "tamam"]
-    .some(yanitIceriyor);
+  const olumsuzYanit = olumsuzYanitMi(yanit);
+  const olumluYanit = olumluYanitMi(yanit) ||
+    ["ok", "tamam"].some((ifade) => yanitKelimeleri.includes(ifade));
   if (!olumsuzYanit && !olumluYanit) return false;
 
   const takim = davetTakiminiNormallestir(davetBekleyen.takim);
@@ -998,6 +1014,98 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.`
   );
   return true;
+}
+
+async function artiBirIsle(msg, contact) {
+  if (msg.fromMe) return;
+
+  const gonderenAdlari = [contact?.name, contact?.pushname]
+    .map(oyuncuAdiAnahtari)
+    .filter(Boolean);
+  if (gonderenAdlari.length === 0) {
+    console.log("ℹ️ Katılma isteği gönderen kişinin rehber veya profil adı bulunamadı.");
+    return;
+  }
+
+  const oyuncuHavuzu = await oyuncuHavuzunuGetir();
+  const oyuncu = oyuncuHavuzu.find((aday) =>
+    gonderenAdlari.includes(oyuncuAdiAnahtari(aday.isim))
+  );
+  if (!oyuncu) {
+    console.log(`ℹ️ Katılma isteği gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
+    return;
+  }
+
+  let degisiklik = null;
+  const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+    degisiklik = null;
+    if (!hafiza?.canli_kadro?.kadro) return;
+
+    const canliKadro = hafiza.canli_kadro;
+    const kadro = {
+      ...canliKadro.kadro,
+      red: { ...(canliKadro.kadro.red || {}) },
+      white: { ...(canliKadro.kadro.white || {}) },
+    };
+    const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
+    const oyuncuAnahtari = oyuncuAdiAnahtari(oyuncu.isim);
+    const anaKadrodaVar = ["red", "white"].some((takim) =>
+      Object.values(kadro[takim]).some((kadroOyuncusu) =>
+        kadroOyuncusu &&
+        ((kadroOyuncusu.id !== undefined && String(kadroOyuncusu.id) === String(oyuncu.id)) ||
+          oyuncuAdiAnahtari(kadroOyuncusununAdi(kadroOyuncusu)) === oyuncuAnahtari)
+      )
+    );
+    const yedekteVar = yedekler.some((yedek) =>
+      (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
+      oyuncuAdiAnahtari(kadroOyuncusununAdi(yedek)) === oyuncuAnahtari
+    );
+    if (anaKadrodaVar || yedekteVar) return;
+
+    const toplamOyuncu = ["red", "white"].reduce(
+      (toplam, takim) => toplam + Object.values(kadro[takim]).filter(Boolean).length,
+      0
+    );
+    let bosYer = null;
+    if (toplamOyuncu < 14) {
+      for (const takim of ["red", "white"]) {
+        const bosSlot = Array.from({ length: 7 }, (_, index) => `pos_${index}`)
+          .find((slot) => !kadro[takim][slot]);
+        if (bosSlot) {
+          bosYer = { takim, slot: bosSlot };
+          break;
+        }
+      }
+    }
+
+    if (bosYer) {
+      kadro[bosYer.takim][bosYer.slot] = oyuncu;
+      degisiklik = { tur: "ana_kadro", isim: oyuncu.isim };
+    } else {
+      yedekler.push(oyuncu);
+      degisiklik = { tur: "yedek", isim: oyuncu.isim };
+    }
+
+    const davetBekleyen = hafiza.davet_bekleyen;
+    const davetBekleyeniTemizle = davetBekleyen &&
+      gonderenAdlari.includes(oyuncuAdiAnahtari(davetBekleyen.isim));
+    return {
+      ...hafiza,
+      canli_kadro: { ...canliKadro, kadro, yedekler },
+      ...(davetBekleyeniTemizle ? { davet_bekleyen: null } : {}),
+    };
+  });
+
+  if (!sonuc.committed || !degisiklik) {
+    console.log(`ℹ️ Katılma isteği için oyuncu zaten kadroda/yedeklerde veya aktif kadro bulunamadı: ${oyuncu.isim}`);
+    return;
+  }
+
+  const mesaj = degisiklik.tur === "ana_kadro"
+    ? `✅ *${degisiklik.isim}* kadrodaki boş yere eklendi!`
+    : `⏳ 14 kişilik ana kadro dolu olduğu için *${degisiklik.isim}* yedek listesinin sonuna eklendi.`;
+  await client.sendMessage(msg.from, mesaj);
+  console.log(`✅ Katılma isteği işlendi: ${degisiklik.isim} (${degisiklik.tur}).`);
 }
 
 async function eksiBirIsle(msg, contact = null) {
