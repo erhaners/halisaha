@@ -761,9 +761,9 @@ async function mesajıIsle(msg) {
     return;
   }
 
-  if (body.toUpperCase().trim() === "BOT AKTİF Mİ?") {
+  if (body.toLocaleUpperCase("tr-TR").includes("BOT AKTİF Mİ")) {
     console.log("🎲 Kalp atışı kontrolü tetiklendi. Yanıt fırlatılıyor...");
-    await client.sendMessage(msg.from, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden 7/24 (08:30 - 22:00) dinlemedeyim. Komutlarınızı bekliyorum.");
+    await client.sendMessage(msg.from, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden her gün *08:30 - 00:30* saatleri arasında dinlemedeyim. Komutlarınızı bekliyorum.");
     return;
   }
 
