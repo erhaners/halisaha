@@ -21,6 +21,7 @@ const { getDatabase, ref, get, set, remove, runTransaction } = require("firebase
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const CANLI_KADRO_YOLU = "sistem_hafizasi/canli_kadro";
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
   authDomain: "halisaha-taktik.firebaseapp.com",
@@ -99,7 +100,7 @@ Not: -1 yazanların yerine sıradaki yedek oyuncular otomatik davet edilecektir.
 }
 
 async function haftalikYoklamaGonder() {
-  const kadroSnapshot = await get(ref(database, "sistem_hafizasi/canli_kadro"));
+  const kadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
   const kadro = kadroSnapshot.val();
   if (!kadro?.kadro) {
     console.log("ℹ️ Haftalık yoklama gönderilmedi: aktif kadro bulunamadı.");
@@ -842,7 +843,7 @@ async function mesajıIsle(msg) {
 
     const { kadro, mod, takimlar } = await akllliTakimlariKur(anaKadro, oyuncuHavuzu);
     const firebaseKadro = { kadro, mod, yedekler };
-    await set(ref(database, "sistem_hafizasi/canli_kadro"), firebaseKadro);
+    await set(ref(database, CANLI_KADRO_YOLU), firebaseKadro);
 
     const slotMevkileri = {
       pos_0: "KL",
@@ -906,6 +907,16 @@ function yedekleriDiziOlarakAl(yedekler) {
   ).filter(Boolean);
 }
 
+function kadroSlotunuGec(takimKadro, isle) {
+  if (!takimKadro) return null;
+  for (let index = 0; index <= 6; index++) {
+    const slot = `pos_${index}`;
+    const sonuc = isle(slot, takimKadro[slot]);
+    if (sonuc) return sonuc;
+  }
+  return null;
+}
+
 function turkceKucukIsim(isim) {
   return String(isim || "")
     .trim()
@@ -914,11 +925,13 @@ function turkceKucukIsim(isim) {
 }
 
 function isimEslesiyorMu(isim1, isim2) {
-  let aranan = turkceKucukIsim(isim1);
-  let aday = turkceKucukIsim(isim2);
-  aranan = aranan.replace(/i/g, "ı").replace(/İ/g, "ı");
-  aday = aday.replace(/i/g, "ı").replace(/İ/g, "ı");
-  return Boolean(aranan && aday && (aday.includes(aranan) || aranan.includes(aday)));
+  let mesajIsmi = turkceKucukIsim(isim1).replace(/i/g, "ı").replace(/İ/g, "ı");
+  let kadroIsmi = turkceKucukIsim(isim2).replace(/i/g, "ı").replace(/İ/g, "ı");
+  if (!mesajIsmi || !kadroIsmi) return false;
+  if (mesajIsmi === kadroIsmi) return true;
+  if (mesajIsmi.includes(kadroIsmi) && kadroIsmi.length >= 3) return true;
+  if (kadroIsmi.includes(mesajIsmi) && kadroIsmi.length >= 3) return true;
+  return false;
 }
 
 function esnekIsimEslesti(bulunanIsim, adayIsim) {
@@ -947,7 +960,7 @@ async function katilimAyrilmaKisisiniBul(msg) {
   let bulunanIsim = adayIsimler[0] || "";
 
   const oyuncuHavuzu = await oyuncuHavuzunuGetir();
-  const canliKadroSnapshot = await get(ref(database, "sistem_hafizasi/canli_kadro"));
+  const canliKadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
   const canliKadro = canliKadroSnapshot.val();
   if (!canliKadro?.kadro) {
     console.log("⚠️ Veritabanında aktif bir kadro bulunamadı, önce ANA KADRO listesi gönderilmeli.");
@@ -1305,18 +1318,25 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null) {
     let slot = null;
 
     for (const takimAdi of ["red", "white"]) {
-      const eslesme = Object.entries(kadro[takimAdi]).find(([, kadroOyuncusu]) => {
-        if (!kadroOyuncusu) return false;
-        if (kadroOyuncusu.id !== undefined && String(kadroOyuncusu.id) === String(oyuncu.id)) {
-          return true;
+      const eslesme = kadroSlotunuGec(kadro[takimAdi], (slotAdi, kadroOyuncusu) => {
+        if (!kadroOyuncusu) return null;
+        if (
+          typeof kadroOyuncusu === "object" &&
+          kadroOyuncusu.id !== undefined &&
+          String(kadroOyuncusu.id) === String(oyuncu.id)
+        ) {
+          return { slot: slotAdi, oyuncu: kadroOyuncusu };
         }
-        return gonderenAdlari.some((gonderenAdi) =>
-          isimEslesiyorMu(gonderenAdi, kadroOyuncusununAdi(kadroOyuncusu))
-        ) || isimEslesiyorMu(oyuncu.isim, kadroOyuncusununAdi(kadroOyuncusu));
+        const kadroIsmi = kadroOyuncusununAdi(kadroOyuncusu);
+        const eslesti = gonderenAdlari.some((gonderenAdi) =>
+          isimEslesiyorMu(gonderenAdi, kadroIsmi)
+        ) || isimEslesiyorMu(oyuncu.isim, kadroIsmi);
+        return eslesti ? { slot: slotAdi, oyuncu: kadroOyuncusu } : null;
       });
       if (eslesme) {
         takim = takimAdi;
-        [slot, cikanOyuncu] = eslesme;
+        slot = eslesme.slot;
+        cikanOyuncu = eslesme.oyuncu;
         break;
       }
     }
