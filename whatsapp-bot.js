@@ -714,6 +714,8 @@ client.on("ready", async () => {
 async function mesajıIsle(msg) {
   console.log("📥 HAM SİNYAL:", msg.from, msg.body?.substring(0, 20));
   if (msg.timestamp < botBaslangicZamani) return;
+  const hedefGrupId = msg.fromMe ? msg.to : msg.from;
+  msg.hedefGrupId = hedefGrupId;
 
   console.log(`📡 [YENİ MESAJ GELDİ] -> msg.from: "${msg?.from}" | Gövde: "${String(msg?.body || "").substring(0, 15)}..."`);
 
@@ -849,7 +851,8 @@ async function mesajıIsle(msg) {
 
   if (body.toLocaleUpperCase("tr-TR").includes("BOT AKTİF Mİ")) {
     console.log("🎲 Kalp atışı kontrolü tetiklendi. Yanıt fırlatılıyor...");
-    await client.sendMessage(msg.from, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden her gün *08:30 - 00:30* saatleri arasında dinlemedeyim. Komutlarınızı bekliyorum.");
+    if (!hedefGrupId || (!hedefGrupId.includes("@g.us") && !hedefGrupId.includes("@lid"))) return;
+    await client.sendMessage(hedefGrupId, "🤖 *Halı Saha Otomasyon Botu Aktif!* \n\n💻 Ev bilgisayarı üzerinden her gün *08:30 - 00:30* saatleri arasında dinlemedeyim. Komutlarınızı bekliyorum.");
     return;
   }
 
@@ -904,7 +907,8 @@ ${yedekMesaji || "Yedek oyuncu yok"}
 
     console.log("✅ Canlı kadro Firebase'e başarıyla kaydedildi.");
     try {
-      await msg.reply(yanitMetni);
+      if (!hedefGrupId || (!hedefGrupId.includes("@g.us") && !hedefGrupId.includes("@lid"))) return;
+      await client.sendMessage(hedefGrupId, yanitMetni);
       console.log("🚀 Dağıtım yanıtı gruba başarıyla gönderildi!");
     } catch (error) {
       console.error("❌ WhatsApp yanıtı gönderilirken hata oluştu:", error);
@@ -1164,7 +1168,8 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     const redMesaji = sonucBilgisi.yeniDavetEdilen
       ? `⏭️ *${sonucBilgisi.reddeden}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${sonucBilgisi.yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
       : "⚠️ Yedek listesinde davet edilecek başka oyuncu kalmadı.";
-    await client.sendMessage(msg.from, redMesaji);
+    if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
+    await client.sendMessage(msg.hedefGrupId, redMesaji);
     return true;
   }
 
@@ -1229,8 +1234,9 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     return true;
   }
 
+  if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
   await client.sendMessage(
-    msg.from,
+    msg.hedefGrupId,
     `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.`
   );
   return true;
@@ -1329,7 +1335,8 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
   const mesaj = degisiklik.tur === "ana_kadro"
     ? `✅ *${degisiklik.isim}* kadrodaki boş yere eklendi!`
     : `⏳ 14 kişilik ana kadro dolu olduğu için *${degisiklik.isim}* yedek listesinin sonuna eklendi.`;
-  await client.sendMessage(msg.from, mesaj);
+  if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+  await client.sendMessage(msg.hedefGrupId, mesaj);
   console.log(`✅ Katılma isteği işlendi: ${degisiklik.isim} (${degisiklik.tur}).`);
 }
 
@@ -1425,7 +1432,8 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
 ❌ *${degisiklik.cikanIsim}* bu hafta aramızda olamayacak ve yedek listesinin sonuna eklendi.
 
 🎉 *Hey ${degisiklik.davetEdilenIsim}, sana yer açıldı!* Bu fırsatı kaçırmak istemezsin, sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`;
-  await client.sendMessage(msg.from, mesaj);
+  if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+  await client.sendMessage(msg.hedefGrupId, mesaj);
   console.log(
     `✅ ${degisiklik.cikanIsim} kadrodan çıkarıldı; ${degisiklik.davetEdilenIsim} davet edildi (${degisiklik.takim}, ${degisiklik.slot}).`
   );
