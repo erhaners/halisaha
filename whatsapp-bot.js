@@ -618,18 +618,20 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 }
 
 const client = new Client({
+  authTimeoutMs: 60000,
   authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
   puppeteer: {
     headless: true,
     executablePath: require('fs').existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe')
       ? 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'
       : 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    protocolTimeout: 60000,
+    protocolTimeout: 120000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
       '--disable-gpu',
+      '--disable-features=site-per-process',
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-extensions',
@@ -681,6 +683,10 @@ client.on("authenticated", () => {
   console.log("⏳ WhatsApp Web arayüzü yükleniyor, lütfen bekleyin...");
   console.log("✅ WhatsApp kimlik doğrulandı; yerel oturum kaydedildi.");
 });
+
+client.on('loading_screen', (percent, message) =>
+  console.log('⏳ Yükleniyor:', percent, message)
+);
 
 client.on("ready", async () => {
   if (botHeartbeatInterval) clearInterval(botHeartbeatInterval);
