@@ -714,7 +714,7 @@ async function mesajıIsle(msg) {
 
   const body = typeof msg.body === "string" ? msg.body : "";
   if (!body.trim()) return;
-  const normalizeEdilmisYanit = body.trim().toLocaleLowerCase("tr-TR");
+  const temiz = body.trim().toLocaleLowerCase("tr-TR");
 
   const botSablonCumleleri = [
     "Akıllı Kadro Dağıtımı",
@@ -757,11 +757,23 @@ async function mesajıIsle(msg) {
     }
   }
 
-  const katilimAyrilmaKomutuMu =
-    normalizeEdilmisYanit === "-1" ||
-    normalizeEdilmisYanit === "+1" ||
-    normalizeEdilmisYanit === "+" ||
-    normalizeEdilmisYanit === "+ 1";
+  const ayrilmaKomutuMu =
+    temiz === "-1" ||
+    temiz === "_1" ||
+    temiz === "-" ||
+    temiz.includes("gelemiyorum") ||
+    temiz.includes("gelemem") ||
+    temiz.includes("yokum") ||
+    temiz.includes("katılamayacağım");
+  const katilmaKomutuMu =
+    temiz === "+1" ||
+    temiz === "+" ||
+    temiz === "+ 1" ||
+    temiz.includes("beni de ekle") ||
+    temiz.includes("gelirim") ||
+    temiz.includes("varım") ||
+    temiz.includes("kadroya ekle");
+  const katilimAyrilmaKomutuMu = ayrilmaKomutuMu || katilmaKomutuMu;
   let katilimAyrilmaBilgisi = null;
   if (katilimAyrilmaKomutuMu) {
     try {
@@ -783,7 +795,7 @@ async function mesajıIsle(msg) {
     }
   }
 
-  if (olumsuzYanitMi(normalizeEdilmisYanit)) {
+  if (ayrilmaKomutuMu) {
     try {
       await eksiBirIsle(msg, contact, katilimAyrilmaBilgisi);
     } catch (error) {
@@ -792,7 +804,7 @@ async function mesajıIsle(msg) {
     return;
   }
 
-  if (olumluYanitMi(normalizeEdilmisYanit)) {
+  if (katilmaKomutuMu) {
     try {
       contact = contact || await msg.getContact();
       await artiBirIsle(msg, contact, katilimAyrilmaBilgisi);
@@ -895,10 +907,16 @@ function turkceKucukIsim(isim) {
     .toLocaleLowerCase("tr-TR");
 }
 
-function esnekIsimEslesti(bulunanIsim, adayIsim) {
-  const aranan = turkceKucukIsim(bulunanIsim);
-  const aday = turkceKucukIsim(adayIsim);
+function isimEslesiyorMu(isim1, isim2) {
+  let aranan = turkceKucukIsim(isim1);
+  let aday = turkceKucukIsim(isim2);
+  aranan = aranan.replace(/i/g, "ı").replace(/İ/g, "ı");
+  aday = aday.replace(/i/g, "ı").replace(/İ/g, "ı");
   return Boolean(aranan && aday && (aday.includes(aranan) || aranan.includes(aday)));
+}
+
+function esnekIsimEslesti(bulunanIsim, adayIsim) {
+  return isimEslesiyorMu(bulunanIsim, adayIsim);
 }
 
 async function katilimAyrilmaKisisiniBul(msg) {
@@ -925,6 +943,9 @@ async function katilimAyrilmaKisisiniBul(msg) {
   const oyuncuHavuzu = await oyuncuHavuzunuGetir();
   const canliKadroSnapshot = await get(ref(database, "sistem_hafizasi/canli_kadro"));
   const canliKadro = canliKadroSnapshot.val();
+  if (!canliKadro?.kadro) {
+    console.log("⚠️ Veritabanında aktif bir kadro bulunamadı, önce ANA KADRO listesi gönderilmeli.");
+  }
   const kadroIsimleri = [];
 
   for (const takim of ["red", "white"]) {
@@ -965,17 +986,15 @@ async function katilimAyrilmaKisisiniBul(msg) {
 }
 
 function olumsuzYanitMi(yanit) {
-  return ["-1", "_1", "-"].includes(yanit) ||
-    ["gelemiyorum", "gelemem", "yokum", "katılamayacağım"].some((ifade) =>
-      yanit.includes(ifade)
-    );
+  const temiz = String(yanit || "").trim().toLocaleLowerCase("tr-TR");
+  return ["-1", "_1", "-"].includes(temiz) ||
+    ["gelemiyorum", "gelemem", "yokum", "katılamayacağım"].some((ifade) => temiz.includes(ifade));
 }
 
 function olumluYanitMi(yanit) {
-  return ["+1", "+", "+ 1"].includes(yanit) ||
-    ["beni de ekle", "gelirim", "varım", "ben de varım", "kadroya ekle"].some((ifade) =>
-      yanit.includes(ifade)
-    );
+  const temiz = String(yanit || "").trim().toLocaleLowerCase("tr-TR");
+  return ["+1", "+", "+ 1"].includes(temiz) ||
+    ["beni de ekle", "gelirim", "varım", "ben de varım", "kadroya ekle"].some((ifade) => temiz.includes(ifade));
 }
 
 function davetTakiminiNormallestir(takim) {
@@ -988,16 +1007,15 @@ function davetTakiminiNormallestir(takim) {
 async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
   if (!davetBekleyen?.isim) return false;
 
-  const davetEdilenAnahtari = oyuncuAdiAnahtari(davetBekleyen.isim);
   const gonderenAdlari = [
     msg._data?.notifyName,
     contact?.name,
     contact?.pushname,
     msg.fromMe ? "Erhan Ersoy" : null,
   ]
-    .map(oyuncuAdiAnahtari)
+    .map((isim) => String(isim || "").trim())
     .filter(Boolean);
-  if (!gonderenAdlari.includes(davetEdilenAnahtari)) return false;
+  if (!gonderenAdlari.some((isim) => isimEslesiyorMu(isim, davetBekleyen.isim))) return false;
 
   const yanit = body.trim().toLocaleLowerCase("tr-TR");
   const yanitKelimeleri = yanit.match(/[a-zçğıöşü0-9+-]+/g) || [];
@@ -1020,7 +1038,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
       const mevcutDavet = hafiza?.davet_bekleyen;
       if (
         !mevcutDavet ||
-        oyuncuAdiAnahtari(mevcutDavet.isim) !== davetEdilenAnahtari ||
+        !isimEslesiyorMu(mevcutDavet.isim, davetBekleyen.isim) ||
         davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
         mevcutDavet.slot !== slot
       ) {
@@ -1032,7 +1050,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
       const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
       if (
         !yedekler.length ||
-        oyuncuAdiAnahtari(kadroOyuncusununAdi(yedekler[0])) !== davetEdilenAnahtari
+        !isimEslesiyorMu(kadroOyuncusununAdi(yedekler[0]), davetBekleyen.isim)
       ) {
         return;
       }
@@ -1071,7 +1089,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
 
   const oyuncuHavuzu = await oyuncuHavuzunuGetir();
   const oyuncu = oyuncuHavuzu.find(
-    (aday) => oyuncuAdiAnahtari(aday.isim) === davetEdilenAnahtari
+    (aday) => isimEslesiyorMu(aday.isim, davetBekleyen.isim)
   );
   if (!oyuncu) {
     console.error(`❌ Davet edilen oyuncu güncel havuzda bulunamadı: ${davetBekleyen.isim}`);
@@ -1084,7 +1102,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     const mevcutDavet = hafiza?.davet_bekleyen;
     if (
       !mevcutDavet ||
-      oyuncuAdiAnahtari(mevcutDavet.isim) !== davetEdilenAnahtari ||
+      !isimEslesiyorMu(mevcutDavet.isim, davetBekleyen.isim) ||
       davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
       mevcutDavet.slot !== slot
     ) {
@@ -1103,7 +1121,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
     const yedekIndex = yedekler.findIndex((yedek) =>
       (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
-      oyuncuAdiAnahtari(kadroOyuncusununAdi(yedek)) === davetEdilenAnahtari
+      isimEslesiyorMu(kadroOyuncusununAdi(yedek), davetBekleyen.isim)
     );
     if (yedekIndex < 0) return;
 
@@ -1171,17 +1189,16 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null) {
       white: { ...(canliKadro.kadro.white || {}) },
     };
     const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
-    const oyuncuAnahtari = oyuncuAdiAnahtari(oyuncu.isim);
     const anaKadrodaVar = ["red", "white"].some((takim) =>
       Object.values(kadro[takim]).some((kadroOyuncusu) =>
         kadroOyuncusu &&
         ((kadroOyuncusu.id !== undefined && String(kadroOyuncusu.id) === String(oyuncu.id)) ||
-          oyuncuAdiAnahtari(kadroOyuncusununAdi(kadroOyuncusu)) === oyuncuAnahtari)
+          isimEslesiyorMu(kadroOyuncusununAdi(kadroOyuncusu), oyuncu.isim))
       )
     );
     const yedekteVar = yedekler.some((yedek) =>
       (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
-      oyuncuAdiAnahtari(kadroOyuncusununAdi(yedek)) === oyuncuAnahtari
+      isimEslesiyorMu(kadroOyuncusununAdi(yedek), oyuncu.isim)
     );
     if (anaKadrodaVar || yedekteVar) return;
 
@@ -1211,7 +1228,9 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null) {
 
     const davetBekleyen = hafiza.davet_bekleyen;
     const davetBekleyeniTemizle = davetBekleyen &&
-      gonderenAdlari.includes(oyuncuAdiAnahtari(davetBekleyen.isim));
+      gonderenAdlari.some((gonderenAdi) =>
+        isimEslesiyorMu(gonderenAdi, davetBekleyen.isim)
+      );
     return {
       ...hafiza,
       canli_kadro: { ...canliKadro, kadro, yedekler },
@@ -1264,10 +1283,6 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null) {
     return;
   }
 
-  const oyuncuAdlari = new Set([
-    ...gonderenAdlari,
-    oyuncuAdiAnahtari(oyuncu.isim),
-  ]);
   let degisiklik = null;
   const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
     degisiklik = null;
@@ -1289,7 +1304,9 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null) {
         if (kadroOyuncusu.id !== undefined && String(kadroOyuncusu.id) === String(oyuncu.id)) {
           return true;
         }
-        return oyuncuAdlari.has(oyuncuAdiAnahtari(kadroOyuncusununAdi(kadroOyuncusu)));
+        return gonderenAdlari.some((gonderenAdi) =>
+          isimEslesiyorMu(gonderenAdi, kadroOyuncusununAdi(kadroOyuncusu))
+        ) || isimEslesiyorMu(oyuncu.isim, kadroOyuncusununAdi(kadroOyuncusu));
       });
       if (eslesme) {
         takim = takimAdi;
