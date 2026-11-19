@@ -1296,6 +1296,26 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
     (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
     isimEslesiyorMu(kadroOyuncusununAdi(yedek), oyuncu.isim)
   );
+  if (anaKadrodaVar) {
+    if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+    await client.sendMessage(
+      msg.hedefGrupId,
+      `😎 *${oyuncu.isim}* sakin ol şampiyon, adın zaten ana kadroda altın harflerle yazılı! Kramponlarını hazırla, sahadasın. ⚽`
+    );
+    return;
+  }
+  if (yedekteVar) {
+    const yedekIndex = yedekler.findIndex((yedek) =>
+      (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
+      isimEslesiyorMu(kadroOyuncusununAdi(yedek), oyuncu.isim)
+    );
+    if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+    await client.sendMessage(
+      msg.hedefGrupId,
+      `⏳ *${oyuncu.isim}* heyecanını anlıyorum ama adın yedek listesinde (*${yedekIndex + 1}. yedek*) zaten kayıtlı, merak etme! Bir fire verilirse ilk sana haber uçuracağım. 🫡`
+    );
+    return;
+  }
   if (!anaKadrodaVar && !yedekteVar) {
     const toplamOyuncu = ["red", "white"].reduce(
       (toplam, takim) => toplam + Object.values(kadro[takim]).filter(Boolean).length,
@@ -1383,6 +1403,24 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
     red: { ...(kadroNesnesi.red || {}) },
     white: { ...(kadroNesnesi.white || {}) },
   };
+  const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi.yedekler);
+  const yedekIndex = yedekler.findIndex((yedek) =>
+    (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
+    isimEslesiyorMu(kadroOyuncusununAdi(yedek), oyuncu.isim)
+  );
+  if (yedekIndex >= 0) {
+    yedekler.splice(yedekIndex, 1);
+    const guncellenmisCanliVeri = canliIcerisiKadroMu
+      ? { ...canliKadroVerisi, kadro, yedekler }
+      : { ...canliKadroVerisi, red: kadro.red, white: kadro.white, yedekler };
+    await set(ref(database, CANLI_KADRO_YOLU), guncellenmisCanliVeri);
+    if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+    await client.sendMessage(
+      msg.hedefGrupId,
+      `👋 *${oyuncu.isim}* yedek listesinden kaydını sildim, bilgin için teşekkürler. Haftaya sahalarda görüşmek üzere!`
+    );
+    return;
+  }
   let cikanOyuncu = null;
   let takim = null;
   let slot = null;
@@ -1401,12 +1439,16 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   }
 
   if (!takim) {
-    console.log(`ℹ️ -1 gönderen oyuncu aktif kadroda bulunamadı: ${oyuncu.isim}`);
+    if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
+    await client.sendMessage(
+      msg.hedefGrupId,
+      `🤔 *${oyuncu.isim}* listeye baktım ama adın zaten ne kadroda ne de yedeklerde var. Kafan rahat olsun, bu hafta izindesin! 🏖️`
+    );
+    console.log(`ℹ️ -1 gönderen oyuncu aktif kadroda veya yedeklerde bulunamadı: ${oyuncu.isim}`);
     return;
   }
 
   kadro[takim][slot] = null;
-  const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi.yedekler);
   yedekler.push(oyuncu);
   const ilkYedek = yedekler[0];
   const davetEdilenIsim = kadroOyuncusununAdi(ilkYedek);
