@@ -798,11 +798,7 @@ async function mesajıIsle(msg) {
 
   let contact = null;
   if (davetBekleyen) {
-    try {
-      contact = await msg.getContact();
-    } catch (error) {
-      console.error("❌ Bekleyen davet yanıtı için kişi bilgisi alınamadı:", error);
-    }
+    contact = await guvenliKisiBilgisiAl(msg);
     try {
       const davetYanitlandi = await davetYanitiniIsle(
         msg,
@@ -1034,15 +1030,25 @@ function esnekIsimEslesti(bulunanIsim, adayIsim) {
   return isimEslesiyorMu(bulunanIsim, adayIsim);
 }
 
+async function guvenliKisiBilgisiAl(msg) {
+  try {
+    const contact = await client.getContactById(msg.author || msg.from);
+    if (contact) return contact;
+  } catch {
+  }
+
+  const notifyName = String(msg?._data?.notifyName || "").trim();
+  return {
+    name: notifyName || (msg?.fromMe ? "Erhan Ersoy" : ""),
+    pushname: msg?.fromMe ? "Erhan Ersoy" : notifyName,
+  };
+}
+
 async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null, contact = null) {
   const adayIsimler = [];
 
   if (!contact) {
-    try {
-      contact = await msg.getContact();
-    } catch (error) {
-      console.error("❌ Gönderen kişi bilgisi alınamadı:", error);
-    }
+    contact = await guvenliKisiBilgisiAl(msg);
   }
   const contactName = String(contact?.name || "").trim();
   const pushName = String(contact?.pushname || "").trim();
@@ -1060,13 +1066,14 @@ async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null, contact =
 
   const oyuncuHavuzu = await oyuncuHavuzunuGetir();
   const canliKadro = canliKadroVerisi;
-  if (!canliKadro?.kadro) {
+  const kadroNesnesi = canliKadro?.kadro || canliKadro;
+  if (!kadroNesnesi) {
     console.log("⚠️ Veritabanında aktif bir kadro bulunamadı, önce ANA KADRO listesi gönderilmeli.");
   }
   const kadroIsimleri = [];
 
   for (const takim of ["red", "white"]) {
-    for (const oyuncu of Object.values(canliKadro?.kadro?.[takim] || {})) {
+    for (const oyuncu of Object.values(kadroNesnesi?.[takim] || {})) {
       kadroIsimleri.push(kadroOyuncusununAdi(oyuncu));
     }
   }
@@ -1119,6 +1126,83 @@ function davetTakiminiNormallestir(takim) {
   if (takimAnahtari === "red" || takimAnahtari === "kırmızı") return "red";
   if (takimAnahtari === "white" || takimAnahtari === "beyaz") return "white";
   return null;
+}
+
+function rastgeleSec(liste) {
+  return liste[Math.floor(Math.random() * liste.length)];
+}
+
+function anaKadrodaZatenVarMesaji(isim) {
+  return rastgeleSec([
+    `😎 *${isim}*, kadroda yerin rezerve; +1'inle kadroya ikinci kez giremezsin!`,
+    `⚽ *${isim}*, adın zaten ilk 11'de (tamam, 7'de) yazıyor. Çift krampon yeter!`,
+    `📝 *${isim}*, seni kadroya çoktan yazdık; bu +1'i yedek kulübesine alıyorum.`,
+    `🏃 *${isim}*, sahada zaten varsın! Bir de kendine pas atmana gerek yok.`,
+    `✅ *${isim}*, kadroda kayıtlısın. Bu hafta seni klonlamıyoruz, tek kişilik yer var!`,
+    `😄 *${isim}*, adın kadroda duruyor; +1 mesajın da moral desteği sayıldı.`,
+    `🎟️ *${isim}*, biletin kesilmiş, koltuğun belli. Kadroda zaten yerin hazır!`,
+    `📋 *${isim}*, listeyi kontrol ettim: kadrodasın. Heyecandan iki kez yazdın galiba!`,
+    `🥅 *${isim}*, kadroda zaten top koşturacaksın; bu +1'i ısınma turu sayalım.`,
+    `🤝 *${isim}*, seni unutmadık merak etme; kadroda adın zaten baş köşede!`,
+  ]);
+}
+
+function yedekteZatenVarMesaji(isim, sira) {
+  return rastgeleSec([
+    `⏳ *${isim}*, yedek listesinin ${sira}. sırasında zaten bekliyorsun; +1'le sıranı öne alamıyoruz!`,
+    `🪑 *${isim}*, yedek koltuğun ${sira}. sıra. Bir kez yazman yeter, mesajın sırayı değiştirmiyor!`,
+    `📋 *${isim}*, kaydın hazır: ${sira}. yedeksin. Listeye ikinci kez giriş yapmana gerek yok.`,
+    `😄 *${isim}*, ${sira}. yedek olarak sıradasın. +1'in geldi, numara sistemi çalışıyor!`,
+    `🫡 *${isim}*, yedek kuyruğunda ${sira}. sıradasın; yerini koruyorum, öne atlamaca yok!`,
+    `🎟️ *${isim}*, yedek biletin ${sira}. sıra için kesildi. Bir tane daha basmıyoruz!`,
+    `⚽ *${isim}*, yedek listesindesin (${sira}. sıra). Sahaya çağrılırsan haber uçuracağız!`,
+    `🔎 *${isim}*, kontrol ettim: ${sira}. yedeksin. Aynı +1'i iki kez saymıyoruz, VAR da onayladı!`,
+    `📣 *${isim}*, sıran ${sira}. yedek. Tribünden takip et, çağrı gelirse kramponları kap!`,
+    `🙌 *${isim}*, kaydın zaten ${sira}. yedek olarak duruyor. Bu mesajını da tezahürat hanesine yazdım!`,
+  ]);
+}
+
+function yedekSonunaEklendiMesaji(isim, sira) {
+  return rastgeleSec([
+    `⏳ Ana kadro dolu; *${isim}* ${sira}. yedek olarak eklendi. Bence sana sıra gelmez, fazla ümitlenme!`,
+    `🪑 *${isim}* yedek listesinin sonuna, ${sira}. sıraya eklendi. Kendine başka planlar yap, bu hafta yer çıkmaz gibi!`,
+    `📋 *${isim}*, ${sira}. yedeksin. Kramponları hazırla ama şimdilik takvimi de boşuna kilitleme!`,
+    `😅 Kadro dolu olduğu için *${isim}* ${sira}. yedek oldu. Sahaya çıkma ihtimalin var... matematiksel olarak!`,
+    `⏳ *${isim}* yedek kuyruğunun ${sira}. sırasında. Çok erken sevinme; sıranın sana gelmesi biraz sürpriz olur!`,
+    `🎟️ *${isim}* ${sira}. yedek olarak yazıldı. Bu hafta planını yap, telefonun çalarsa bonus olur!`,
+    `🫡 *${isim}*, yedek listesinin sonuna (${sira}. sıra) eklendin. Umudu kesme ama başka planı da iptal etme!`,
+    `⚽ Kadro doldu; *${isim}* ${sira}. yedek. Forma çantada dursun, ama tozunu alman gerekmeyebilir!`,
+    `📣 *${isim}* ${sira}. yedek olarak listeye girdi. Sana sıra gelirse bunu haftanın sürprizi ilan ederiz!`,
+    `🙃 *${isim}*, ${sira}. yedeksin. Bu hafta saha kenarı manzarası da fena değil, fazla ümitlenme!`,
+  ]);
+}
+
+function guncelKadroMetniOlustur(canliKadroVerisi) {
+  const slotMevkileri = {
+    pos_0: "KL",
+    pos_1: "SLB",
+    pos_2: "STP",
+    pos_3: "SĞB",
+    pos_4: "SLO",
+    pos_5: "SĞO",
+    pos_6: "FOR",
+  };
+  const kadro = canliKadroVerisi?.kadro || canliKadroVerisi || {};
+  const takimMetni = (takim) =>
+    Array.from({ length: 7 }, (_, index) => {
+      const slot = `pos_${index}`;
+      const oyuncu = kadro[takim]?.[slot];
+      if (!oyuncu) return `_[BOŞ YER - ${slotMevkileri[slot]}]_`;
+      return `${index + 1}. ${kadroOyuncusununAdi(oyuncu)} (${slotMevkileri[slot]})`;
+    }).join("\n");
+  const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi?.yedekler);
+  const yedekMetni = yedekler.length
+    ? yedekler.map((yedek, index) =>
+        `• ${index + 1}. ${kadroOyuncusununAdi(yedek)} (${mevkiKodunuNormallestir(yedek?.anaMevki) || VARSAYILAN_OYUNCU.anaMevki})`
+      ).join("\n")
+    : "Yedek oyuncu yok";
+
+  return `🔴 *KIRMIZI TAKIM*\n${takimMetni("red")}\n\n⚪ *BEYAZ TAKIM*\n${takimMetni("white")}\n\n⏳ *YEDEK LİSTESİ*\n${yedekMetni}`;
 }
 
 async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
@@ -1269,7 +1353,7 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
   await client.sendMessage(
     msg.hedefGrupId,
-    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.`
+    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val()?.canli_kadro)}`
   );
   return true;
 }
@@ -1331,10 +1415,7 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
   );
   if (anaKadrodaVar) {
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
-    await client.sendMessage(
-      msg.hedefGrupId,
-      `😎 *${oyuncu.isim}* sakin ol şampiyon, adın zaten ana kadroda altın harflerle yazılı! Kramponlarını hazırla, sahadasın. ⚽`
-    );
+    await client.sendMessage(msg.hedefGrupId, anaKadrodaZatenVarMesaji(oyuncu.isim));
     return;
   }
   if (yedekteVar) {
@@ -1343,10 +1424,7 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
       isimEslesiyorMu(kadroOyuncusununAdi(yedek), oyuncu.isim)
     );
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
-    await client.sendMessage(
-      msg.hedefGrupId,
-      `⏳ *${oyuncu.isim}* heyecanını anlıyorum ama adın yedek listesinde (*${yedekIndex + 1}. yedek*) zaten kayıtlı, merak etme! Bir fire verilirse ilk sana haber uçuracağım. 🫡`
-    );
+    await client.sendMessage(msg.hedefGrupId, yedekteZatenVarMesaji(oyuncu.isim, yedekIndex + 1));
     return;
   }
   if (!anaKadrodaVar && !yedekteVar) {
@@ -1371,13 +1449,14 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
       degisiklik = { tur: "ana_kadro", isim: oyuncu.isim };
     } else {
       yedekler.push(oyuncu);
-      degisiklik = { tur: "yedek", isim: oyuncu.isim };
+      degisiklik = { tur: "yedek", isim: oyuncu.isim, sira: yedekler.length };
     }
 
     const guncellenmisCanliVeri = canliIcerisiKadroMu
       ? { ...canliKadroVerisi, kadro, yedekler }
       : { ...canliKadroVerisi, red: kadro.red, white: kadro.white, yedekler };
     await set(ref(database, CANLI_KADRO_YOLU), guncellenmisCanliVeri);
+    degisiklik.canliKadroVerisi = guncellenmisCanliVeri;
   }
 
   if (!degisiklik) {
@@ -1387,9 +1466,12 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
 
   const mesaj = degisiklik.tur === "ana_kadro"
     ? `✅ *${degisiklik.isim}* kadrodaki boş yere eklendi!`
-    : `⏳ 14 kişilik ana kadro dolu olduğu için *${degisiklik.isim}* yedek listesinin sonuna eklendi.`;
+    : yedekSonunaEklendiMesaji(degisiklik.isim, degisiklik.sira);
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
-  await client.sendMessage(msg.hedefGrupId, mesaj);
+  await client.sendMessage(
+    msg.hedefGrupId,
+    `${mesaj}\n\n${guncelKadroMetniOlustur(degisiklik.canliKadroVerisi)}`
+  );
   console.log(`✅ Katılma isteği işlendi: ${degisiklik.isim} (${degisiklik.tur}).`);
   return;
 }
@@ -1402,11 +1484,7 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   }
 
   if (!contact && !katilimAyrilmaBilgisi) {
-    try {
-      contact = await msg.getContact();
-    } catch (error) {
-      console.error("❌ -1 gönderen kişi bilgisi alınamadı:", error);
-    }
+    contact = await guvenliKisiBilgisiAl(msg);
   }
   const gonderenAdlari = [
     katilimAyrilmaBilgisi?.bulunanIsim,
@@ -1456,7 +1534,7 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
     await client.sendMessage(
       msg.hedefGrupId,
-      `👋 *${oyuncu.isim}* yedek listesinden kaydını sildim, bilgin için teşekkürler. Haftaya sahalarda görüşmek üzere!`
+      `👋 *${oyuncu.isim}* yedek listesinden kaydını sildim, bilgin için teşekkürler. Haftaya sahalarda görüşmek üzere!\n\n${guncelKadroMetniOlustur(guncellenmisCanliVeri)}`
     );
     return;
   }
@@ -1512,7 +1590,7 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
 
 ❌ *${degisiklik.cikanIsim}* bu hafta aramızda olamayacak ve yedek listesinin sonuna eklendi.
 
-🎉 *Hey ${degisiklik.davetEdilenIsim}, sana yer açıldı!* Bu fırsatı kaçırmak istemezsin, sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`;
+🎉 *Hey ${degisiklik.davetEdilenIsim}, sana yer açıldı!* Bu fırsatı kaçırmak istemezsin, sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!\n\n${guncelKadroMetniOlustur(guncellenmisCanliVeri)}`;
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
   await client.sendMessage(msg.hedefGrupId, mesaj);
   console.log(
@@ -1522,7 +1600,6 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
 }
 
 
-client.on("message", mesajıIsle);
 client.on("message_create", mesajıIsle);
 
 client.on("auth_failure", async (msg) => {
