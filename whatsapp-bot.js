@@ -713,6 +713,25 @@ client.on("ready", async () => {
 
 async function mesajıIsle(msg) {
   if (!msg) return;
+  const kucukGovde = String(msg.body || "").toLocaleLowerCase("tr-TR");
+  const botSablonCumleleri = [
+    "sakin ol şampiyon",
+    "heyecanını anlıyorum",
+    "yedek listesinden kaydını sildim",
+    "listeye baktım ama",
+    "kadrodaki boş yere eklendi",
+    "yedek listesinin sonuna eklendi",
+    "kadroda değişiklik var",
+    "kadro tamamlandı",
+    "akıllı kadro dağıtımı",
+    "halı saha otomasyon botu aktif",
+    "maç tamamlandı",
+  ];
+  if (
+    msg.fromMe &&
+    botSablonCumleleri.some((cumle) => kucukGovde.includes(cumle))
+  ) return;
+
   console.log("📥 HAM SİNYAL:", msg.from, msg.body?.substring(0, 20));
   if (msg.timestamp < botBaslangicZamani) return;
   const chat = await msg.getChat();
@@ -729,23 +748,6 @@ async function mesajıIsle(msg) {
   const body = typeof msg.body === "string" ? msg.body : "";
   if (!body.trim()) return;
   const temiz = body.trim().toLocaleLowerCase("tr-TR");
-
-  const botSablonCumleleri = [
-    "Akıllı Kadro Dağıtımı",
-    "Halı Saha Otomasyon Botu Aktif",
-    "Maç Tamamlandı",
-    "Kadroda Değişiklik Var",
-    "Kadro Tamamlandı",
-    "kadrodaki boş yere eklendi",
-    "yedek listesinin sonuna eklendi",
-  ];
-  const kucukGovde = body.toLocaleLowerCase("tr-TR");
-  if (
-    msg.fromMe &&
-    botSablonCumleleri.some((cumle) =>
-      kucukGovde.includes(cumle.toLocaleLowerCase("tr-TR"))
-    )
-  ) return;
 
   let canliKadroVerisi = null;
   if (
