@@ -944,7 +944,7 @@ async function mesajıIsle(msg) {
       )
       .join("\n");
     const yedekMesaji = yedekler
-      .map((oyuncu) => `• ${oyuncu.isim} (${mevkiKodunuNormallestir(oyuncu.anaMevki)})`)
+      .map((oyuncu, index) => `${index + 1}. ${oyuncu.isim} (${mevkiKodunuNormallestir(oyuncu.anaMevki)})`)
       .join("\n");
     const yanitMetni = `⚽ *Akıllı Kadro Dağıtımı Tamamlandı!*
 
@@ -1380,11 +1380,11 @@ function guncelKadroMetniOlustur(canliKadroVerisi) {
   const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi?.yedekler);
   const yedekMetni = yedekler.length
     ? yedekler.map((yedek, index) =>
-        `• ${index + 1}. ${kadroOyuncusununAdi(yedek)} (${mevkiKodunuNormallestir(yedek?.anaMevki) || VARSAYILAN_OYUNCU.anaMevki})`
+        `${index + 1}. ${kadroOyuncusununAdi(yedek)} (${mevkiKodunuNormallestir(yedek?.anaMevki) || VARSAYILAN_OYUNCU.anaMevki})`
       ).join("\n")
     : "Yedek oyuncu yok";
 
-  return `🔴 *KIRMIZI TAKIM*\n${takimMetni("red")}\n\n⚪ *BEYAZ TAKIM*\n${takimMetni("white")}\n\n⏳ *YEDEK LİSTESİ*\n${yedekMetni}`;
+  return `🔴 *KIRMIZI TAKIM*\n${takimMetni("red")}\n\n⚪ *BEYAZ TAKIM*\n${takimMetni("white")}\n\n⏳ *YEDEK LİSTESİ*\n${yedekMetni}\n\n🏟️ _Kadrolar https://erhaners.github.io/halisaha/ taktik tahtasına işlenmiştir._`;
 }
 
 async function davetYanitiniIsle(
