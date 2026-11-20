@@ -17,7 +17,7 @@ const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
-const { getDatabase, ref, get, set, remove, runTransaction } = require("firebase/database");
+const { getDatabase, ref, get, set, remove } = require("firebase/database");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -1394,7 +1394,18 @@ async function davetYanitiniIsle(
   contact,
   canliKadroVerisi = null
 ) {
-  if (!davetBekleyen?.isim) return false;
+  const ilkYanitlayan = [
+    msg?._data?.notifyName,
+    contact?.name,
+    contact?.pushname,
+    msg?.from,
+  ].filter(Boolean).join(" / ") || "bilinmiyor";
+  console.log(`📩 Davet yanıtı alındı: yanıtlayan ${ilkYanitlayan}.`);
+  if (!davetBekleyen?.isim) {
+    console.log("ℹ️ Yanıtlanacak bekleyen davet bulunamadı.");
+    return false;
+  }
+  console.log(`📨 Bekleyen davet: ${davetBekleyen.isim} (${davetBekleyen.takim || "takım yok"}/${davetBekleyen.slot || "slot yok"}).`);
 
   const etiketliMesajMi = Boolean(msg.mentionedIds?.length) ||
     String(body || "").includes("@");
@@ -1405,7 +1416,13 @@ async function davetYanitiniIsle(
   const olumsuzYanit = olumsuzYanitMi(yanit);
   const olumluYanit = olumluYanitMi(yanit) ||
     ["ok", "tamam"].some((ifade) => yanitKelimeleri.includes(ifade));
-  if (!olumsuzYanit && !olumluYanit) return false;
+  console.log(
+    `🔎 Davet yanıtı algısı: ${olumsuzYanit ? "olumsuz" : olumluYanit ? "olumlu" : "tanınmadı"} (metin: "${yanit}").`
+  );
+  if (!olumsuzYanit && !olumluYanit) {
+    console.log("ℹ️ Mesaj davet yanıtı olmadığı için işlem yapılmadı.");
+    return false;
+  }
 
   let gonderenAdlari;
   if (etiketliMesajMi) {
@@ -1435,7 +1452,16 @@ async function davetYanitiniIsle(
   gonderenAdlari = gonderenAdlari
     .map((isim) => String(isim || "").trim())
     .filter(Boolean);
-  if (!gonderenAdlari.some((isim) => isimEslesiyorMu(isim, davetBekleyen.isim))) return false;
+  const eslesenGonderen = gonderenAdlari.find((isim) =>
+    isimEslesiyorMu(isim, davetBekleyen.isim)
+  );
+  if (!eslesenGonderen) {
+    console.log(
+      `ℹ️ Yanıtlayan davet edilen kişiyle eşleşmedi. Beklenen: ${davetBekleyen.isim}; bulunan: ${gonderenAdlari.join(", ") || "isim yok"}.`
+    );
+    return false;
+  }
+  console.log(`✅ Yanıtlayan davet edilen kişiyle eşleşti: ${eslesenGonderen}.`);
 
   const takim = davetTakiminiNormallestir(davetBekleyen.takim);
   const slot = davetBekleyen.slot;
@@ -1444,6 +1470,7 @@ async function davetYanitiniIsle(
     return true;
   }
 
+  console.log('📥 Bekleyen davet doğrulaması için "sistem_hafizasi/davet_bekleyen" okunuyor.');
   const mevcutDavetSnapshot = await get(ref(database, "sistem_hafizasi/davet_bekleyen"));
   const mevcutDavet = mevcutDavetSnapshot.val();
   if (
@@ -1452,55 +1479,67 @@ async function davetYanitiniIsle(
     davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
     mevcutDavet.slot !== slot
   ) {
-    console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen davet değişmiş; yanıt uygulanmadı.`);
+    console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen davet değişmiş veya silinmiş; yanıt uygulanmadı.`);
     return true;
   }
 
+  console.log(`📥 Güncel kadro "${CANLI_KADRO_YOLU}" yolundan okunuyor.`);
+  const canliKadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
+  canliKadroVerisi = canliKadroSnapshot.val();
+  if (!canliKadroVerisi || typeof canliKadroVerisi !== "object") {
+    console.error(`❌ "${CANLI_KADRO_YOLU}" yolunda güncellenecek kadro bulunamadı.`);
+    return true;
+  }
+  const kadroKatmaniVar = canliKadroVerisi.kadro &&
+    typeof canliKadroVerisi.kadro === "object";
+  const kadro = kadroKatmaniVar
+    ? canliKadroVerisi.kadro
+    : canliKadroVerisi;
+  console.log(
+    `📦 Kadro katmanı: ${kadroKatmaniVar ? "canliKadroVerisi.kadro" : "canliKadroVerisi (kök)"}.`
+  );
+
   if (olumsuzYanit) {
-    let sonucBilgisi = null;
-    const sonuc = await runTransaction(ref(database, CANLI_KADRO_YOLU), (canliKadro) => {
-      sonucBilgisi = null;
-      if (!canliKadro?.kadro) return;
-      const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
-      if (
-        !yedekler.length ||
-        !isimEslesiyorMu(kadroOyuncusununAdi(yedekler[0]), davetBekleyen.isim)
-      ) {
-        return;
-      }
-
-      const reddeden = yedekler.shift();
-      yedekler.push(reddeden);
-      const yeniDavetEdilen = yedekler.length > 1
-        ? kadroOyuncusununAdi(yedekler[0])
-        : null;
-      sonucBilgisi = {
-        reddeden: kadroOyuncusununAdi(reddeden) || davetBekleyen.isim,
-        yeniDavetEdilen,
-        yeniDavet: yeniDavetEdilen
-          ? { ...davetBekleyen, isim: yeniDavetEdilen, takim, slot }
-          : null,
-      };
-
-      return webArayuzuCanliKadroVerisi(canliKadro, canliKadro.kadro, yedekler);
-    });
-
-    if (!sonuc.committed || !sonucBilgisi) {
-      console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen yedek kaydı değişmiş; ret yanıtı uygulanmadı.`);
+    const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi.yedekler);
+    if (
+      !yedekler.length ||
+      !isimEslesiyorMu(kadroOyuncusununAdi(yedekler[0]), davetBekleyen.isim)
+    ) {
+      console.log(`ℹ️ ${davetBekleyen.isim} ret yanıtı uygulanmadı: davetli artık yedek listesinin başında değil.`);
       return true;
     }
-    await set(
-      ref(database, "sistem_hafizasi/davet_bekleyen"),
-      sonucBilgisi.yeniDavet
-    );
+    const reddeden = yedekler.shift();
+    yedekler.push(reddeden);
+    const yeniDavetEdilen = yedekler.length > 1
+      ? kadroOyuncusununAdi(yedekler[0])
+      : null;
+    const yeniCanliKadroVerisi = {
+      ...canliKadroVerisi,
+      yedekler,
+    };
+    console.log(`💾 Ret sonrası kadro "${CANLI_KADRO_YOLU}" yoluna yazılıyor.`);
+    await set(ref(database, CANLI_KADRO_YOLU), yeniCanliKadroVerisi);
 
-    const redMesaji = sonucBilgisi.yeniDavetEdilen
-      ? `⏭️ *${sonucBilgisi.reddeden}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${sonucBilgisi.yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
+    if (yeniDavetEdilen) {
+      console.log(`💾 Yeni bekleyen davet ${yeniDavetEdilen}; "sistem_hafizasi/davet_bekleyen" yoluna yazılıyor.`);
+      await set(ref(database, "sistem_hafizasi/davet_bekleyen"), {
+        ...davetBekleyen,
+        isim: yeniDavetEdilen,
+        takim,
+        slot,
+      });
+    } else {
+      console.log('🗑️ Yedek kalmadığı için "sistem_hafizasi/davet_bekleyen" kaydı siliniyor.');
+      await remove(ref(database, "sistem_hafizasi/davet_bekleyen"));
+    }
+
+    const redMesaji = yeniDavetEdilen
+      ? `⏭️ *${kadroOyuncusununAdi(reddeden) || davetBekleyen.isim}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
       : "⚠️ Yedek listesinde davet edilecek başka oyuncu kalmadı.";
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
     await client.sendMessage(
       msg.hedefGrupId,
-      `${redMesaji}\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val())}`
+      `${redMesaji}\n\n${guncelKadroMetniOlustur(yeniCanliKadroVerisi)}`
     );
     return true;
   }
@@ -1514,40 +1553,48 @@ async function davetYanitiniIsle(
     return true;
   }
 
-  let yerlesenOyuncu = null;
-  const sonuc = await runTransaction(ref(database, CANLI_KADRO_YOLU), (canliKadro) => {
-    yerlesenOyuncu = null;
-    if (!canliKadro?.kadro) return;
-    const kadro = {
-      ...canliKadro.kadro,
-      red: { ...(canliKadro.kadro.red || {}) },
-      white: { ...(canliKadro.kadro.white || {}) },
-    };
-    if (kadro[takim][slot]) return;
-
-    const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
-    const yedekIndex = yedekler.findIndex((yedek) =>
-      (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
-      isimEslesiyorMu(kadroOyuncusununAdi(yedek), davetBekleyen.isim)
-    );
-    if (yedekIndex < 0) return;
-
-    yedekler.splice(yedekIndex, 1);
-    kadro[takim][slot] = webArayuzuOyuncusunaDonustur(oyuncu);
-    yerlesenOyuncu = oyuncu.isim;
-    return webArayuzuCanliKadroVerisi(canliKadro, kadro, yedekler);
-  });
-
-  if (!sonuc.committed || !yerlesenOyuncu) {
-    console.log(`ℹ️ ${davetBekleyen.isim} daveti için kadro kaydı değişmiş; kabul yanıtı uygulanmadı.`);
+  if (!kadro[takim] || typeof kadro[takim] !== "object") {
+    console.error(`❌ Kabul yanıtı uygulanmadı: kadroda "${takim}" takımı bulunamadı.`);
     return true;
   }
-  await set(ref(database, "sistem_hafizasi/davet_bekleyen"), null);
+  if (kadro[takim][slot]) {
+    console.log(`ℹ️ Kabul yanıtı uygulanmadı: ${takim}/${slot} slotu zaten dolu.`);
+    return true;
+  }
+
+  const yedekler = yedekleriDiziOlarakAl(canliKadroVerisi.yedekler);
+  const yedekIndex = yedekler.findIndex((yedek) =>
+    (yedek?.id !== undefined && String(yedek.id) === String(oyuncu.id)) ||
+    isimEslesiyorMu(kadroOyuncusununAdi(yedek), davetBekleyen.isim)
+  );
+  if (yedekIndex < 0) {
+    console.log(`ℹ️ Kabul yanıtı uygulanmadı: ${davetBekleyen.isim} artık yedek listesinde değil.`);
+    return true;
+  }
+  yedekler.splice(yedekIndex, 1);
+  const guncellenmisKadro = {
+    ...kadro,
+    [takim]: {
+      ...kadro[takim],
+      [slot]: webArayuzuOyuncusunaDonustur(oyuncu),
+    },
+  };
+  const yeniCanliKadroVerisi = {
+    ...canliKadroVerisi,
+    ...(kadroKatmaniVar
+      ? { kadro: guncellenmisKadro }
+      : guncellenmisKadro),
+    yedekler,
+  };
+  console.log(`💾 ${oyuncu.isim}, ${takim}/${slot} konumuna yerleştirilerek "${CANLI_KADRO_YOLU}" yoluna yazılıyor.`);
+  await set(ref(database, CANLI_KADRO_YOLU), yeniCanliKadroVerisi);
+  console.log('🗑️ Kabul edilen davet "sistem_hafizasi/davet_bekleyen" yolundan siliniyor.');
+  await remove(ref(database, "sistem_hafizasi/davet_bekleyen"));
 
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
   await client.sendMessage(
     msg.hedefGrupId,
-    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val())}`
+    `✅ *Kadro Tamamlandı!*\n\n🎉 *${oyuncu.isim}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.\n\n${guncelKadroMetniOlustur(yeniCanliKadroVerisi)}`
   );
   return true;
 }
