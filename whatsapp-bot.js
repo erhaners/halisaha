@@ -803,7 +803,13 @@ async function mesajıIsle(msg) {
     try {
       const canliKadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
       canliKadroVerisi = canliKadroSnapshot.val();
-      console.log("📦 Firebase'den okunan ham kadro verisi:", JSON.stringify(canliKadroVerisi));
+      const kadro = canliKadroVerisi?.kadro || {};
+      const takimOyuncuSayisi = (takim) =>
+        Object.values(kadro[takim] || {}).filter(Boolean).length;
+      const yedekSayisi = yedekleriDiziOlarakAl(canliKadroVerisi?.yedekler).length;
+      console.log(
+        `📦 Kadro verisi okundu (Kırmızı: ${takimOyuncuSayisi("red")}, Beyaz: ${takimOyuncuSayisi("white")}, Yedek: ${yedekSayisi})`
+      );
     } catch (error) {
       console.error("❌ Canlı kadro verisi okunamadı:", error);
     }
@@ -819,14 +825,17 @@ async function mesajıIsle(msg) {
   }
 
   let contact = null;
-  if (davetBekleyen && !etiketliMesajMi) {
-    contact = await guvenliKisiBilgisiAl(msg);
+  if (davetBekleyen) {
+    if (!etiketliMesajMi) {
+      contact = await guvenliKisiBilgisiAl(msg);
+    }
     try {
       const davetYanitlandi = await davetYanitiniIsle(
         msg,
         body,
         davetBekleyen,
-        contact
+        contact,
+        canliKadroVerisi
       );
       if (davetYanitlandi) return;
     } catch (error) {
@@ -1241,12 +1250,36 @@ function etiketliKisiAdiniAl(metin) {
     .replace(/@/g, " ")
     .replace(/(^|[\s,.;!?])(?:\+\s*1|-\s*1|_\s*1|\+|-)(?=$|[\s,.;!?])/g, " ")
     .replace(
-      /(^|[\s,.;!?])(?:beni de ekle|ben de varım|gelirim|varım|kadroya ekle|gelemiyorum|gelemem|yokum|katılamayacağım)(?=$|[\s,.;!?])/giu,
+      /(^|[\s,.;!?])(?:beni de ekle|ben de varım|gelirim|varım|kadroya ekle|gelemiyorum|gelemem|yokum|katılamayacağım|ok|tamam)(?=$|[\s,.;!?])/giu,
       " "
     )
     .replace(/^[\s,.;!?]+|[\s,.;!?]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function etiketliDavetYanitiTemizle(metin, hedefIsim) {
+  let temiz = String(metin || "");
+  const isimParcalari = String(hedefIsim || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (isimParcalari.length) {
+    const isimRegex = isimParcalari
+      .map((parca) => parca.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+      .join("\\s+");
+    temiz = temiz.replace(
+      new RegExp(`(^|[\\s@])${isimRegex}(?=$|[\\s,.;!?])`, "iu"),
+      "$1 "
+    );
+  }
+
+  return temiz
+    .replace(/@\S+/g, " ")
+    .replace(/@/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLocaleLowerCase("tr-TR");
 }
 
 function yanitMetniniTemizle(yanit) {
@@ -1354,25 +1387,55 @@ function guncelKadroMetniOlustur(canliKadroVerisi) {
   return `🔴 *KIRMIZI TAKIM*\n${takimMetni("red")}\n\n⚪ *BEYAZ TAKIM*\n${takimMetni("white")}\n\n⏳ *YEDEK LİSTESİ*\n${yedekMetni}`;
 }
 
-async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
+async function davetYanitiniIsle(
+  msg,
+  body,
+  davetBekleyen,
+  contact,
+  canliKadroVerisi = null
+) {
   if (!davetBekleyen?.isim) return false;
 
-  const gonderenAdlari = [
-    msg._data?.notifyName,
-    contact?.name,
-    contact?.pushname,
-    msg.fromMe ? "Erhan Ersoy" : null,
-  ]
-    .map((isim) => String(isim || "").trim())
-    .filter(Boolean);
-  if (!gonderenAdlari.some((isim) => isimEslesiyorMu(isim, davetBekleyen.isim))) return false;
-
-  const yanit = body.trim().toLocaleLowerCase("tr-TR");
+  const etiketliMesajMi = Boolean(msg.mentionedIds?.length) ||
+    String(body || "").includes("@");
+  const yanit = etiketliMesajMi
+    ? etiketliDavetYanitiTemizle(body, davetBekleyen.isim)
+    : body.trim().toLocaleLowerCase("tr-TR");
   const yanitKelimeleri = yanit.match(/[a-zçğıöşü0-9+-]+/g) || [];
   const olumsuzYanit = olumsuzYanitMi(yanit);
   const olumluYanit = olumluYanitMi(yanit) ||
     ["ok", "tamam"].some((ifade) => yanitKelimeleri.includes(ifade));
   if (!olumsuzYanit && !olumluYanit) return false;
+
+  let gonderenAdlari;
+  if (etiketliMesajMi) {
+    if (!canliKadroVerisi) {
+      const canliKadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
+      canliKadroVerisi = canliKadroSnapshot.val();
+    }
+    const etiketliKisi = await katilimAyrilmaKisisiniBul(
+      msg,
+      canliKadroVerisi
+    );
+    gonderenAdlari = [
+      etiketliKisi.bulunanIsim,
+      etiketliKisi.oyuncu?.isim,
+      etiketliKisi.contact?.name,
+      etiketliKisi.contact?.pushname,
+      etiketliKisiAdiniAl(body),
+    ];
+  } else {
+    gonderenAdlari = [
+      msg._data?.notifyName,
+      contact?.name,
+      contact?.pushname,
+      msg.fromMe ? "Erhan Ersoy" : null,
+    ];
+  }
+  gonderenAdlari = gonderenAdlari
+    .map((isim) => String(isim || "").trim())
+    .filter(Boolean);
+  if (!gonderenAdlari.some((isim) => isimEslesiyorMu(isim, davetBekleyen.isim))) return false;
 
   const takim = davetTakiminiNormallestir(davetBekleyen.takim);
   const slot = davetBekleyen.slot;
@@ -1435,7 +1498,10 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
       ? `⏭️ *${sonucBilgisi.reddeden}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${sonucBilgisi.yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
       : "⚠️ Yedek listesinde davet edilecek başka oyuncu kalmadı.";
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
-    await client.sendMessage(msg.hedefGrupId, redMesaji);
+    await client.sendMessage(
+      msg.hedefGrupId,
+      `${redMesaji}\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val())}`
+    );
     return true;
   }
 
