@@ -21,7 +21,7 @@ const { getDatabase, ref, get, set, remove, runTransaction } = require("firebase
 
 const app = express();
 const PORT = process.env.PORT || 10000;
-const CANLI_KADRO_YOLU = "sistem_hafizasi/canli_cadro";
+const CANLI_KADRO_YOLU = "sistem_hafizasi/canli_kadro";
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
   authDomain: "halisaha-taktik.firebaseapp.com",
@@ -888,15 +888,19 @@ async function mesajıIsle(msg) {
   try {
     const { anaKadro, yedekKadro: yedekKadroIsimleri } = isimListesiniAyikla(body);
     const oyuncuHavuzu = await oyuncuHavuzunuGetir();
-    const yedekler = yedekKadroIsimleri.map((isim) => {
+    const yedekler = yedekKadroIsimleri.map((isim, index) => {
       const oyuncu = oyuncuyuHavuzdaBul(isim, oyuncuHavuzu);
       return oyuncu
-        ? { isim: oyuncu.isim, anaMevki: oyuncu.anaMevki }
-        : { isim, anaMevki: VARSAYILAN_OYUNCU.anaMevki };
+        ? oyuncu
+        : {
+            ...VARSAYILAN_OYUNCU,
+            id: `whatsapp-yedek-${index}-${isimAnahtari(isim)}`,
+            isim,
+          };
     });
 
     const { kadro, mod, takimlar } = await akllliTakimlariKur(anaKadro, oyuncuHavuzu);
-    const firebaseKadro = { kadro, mod, yedekler };
+    const firebaseKadro = webArayuzuCanliKadroVerisi({ mod }, kadro, yedekler);
     await set(ref(database, CANLI_KADRO_YOLU), firebaseKadro);
 
     const slotMevkileri = {
@@ -960,6 +964,89 @@ function yedekleriDiziOlarakAl(yedekler) {
       ? [...yedekler]
       : Object.values(yedekler || {})
   ).filter(Boolean);
+}
+
+function webArayuzuIcinMevkiyiNormallestir(mevki) {
+  const kod = String(mevki || "").trim().toLocaleUpperCase("tr-TR");
+  const mevkiKodlari = {
+    KALECI: "KL",
+    KALECİ: "KL",
+    GK: "KL",
+    DEF: "STP",
+    DEFANS: "STP",
+    "SOL BEK": "SLB",
+    "SOL DEFANS": "SLB",
+    LB: "SLB",
+    STOPER: "STP",
+    "MERKEZ DEFANS": "STP",
+    CB: "STP",
+    "SAĞ BEK": "SĞB",
+    "SAG BEK": "SĞB",
+    "SAĞ DEFANS": "SĞB",
+    "SAG DEFANS": "SĞB",
+    RB: "SĞB",
+    "ORTA SAHA": "SLO",
+    ORT: "SLO",
+    "SOL ORTA SAHA": "SLO",
+    "SAĞ ORTA SAHA": "SĞO",
+    "SAG ORTA SAHA": "SĞO",
+    HUC: "FOR",
+    HÜCUM: "FOR",
+    SANTRAFOR: "FOR",
+    ST: "FOR",
+    KL: "KL",
+    SLB: "SLB",
+    STP: "STP",
+    "SĞB": "SĞB",
+    SLO: "SLO",
+    "SĞO": "SĞO",
+    FOR: "FOR",
+  };
+  return mevkiKodlari[kod] || kod || "Yok";
+}
+
+function webArayuzuOyuncusunaDonustur(oyuncu) {
+  const oyuncuVerisi = oyuncu && typeof oyuncu === "object" ? oyuncu : {};
+  const isim = kadroOyuncusununAdi(oyuncu) || "";
+  return {
+    id: String(oyuncuVerisi.id ?? `whatsapp-${isimAnahtari(isim)}`),
+    isim,
+    anaMevki: webArayuzuIcinMevkiyiNormallestir(
+      oyuncuVerisi.anaMevki || VARSAYILAN_OYUNCU.anaMevki
+    ),
+    anaTakim: oyuncuVerisi.anaTakim || "Yok",
+    alternatifMevki: webArayuzuIcinMevkiyiNormallestir(
+      oyuncuVerisi.alternatifMevki ||
+      oyuncuVerisi.alternatifPosition ||
+      "Yok"
+    ),
+    kl: oyuncuVerisi.kl ?? VARSAYILAN_OYUNCU.kl,
+    def: oyuncuVerisi.def ?? VARSAYILAN_OYUNCU.def,
+    ort: oyuncuVerisi.ort ?? VARSAYILAN_OYUNCU.ort,
+    for: oyuncuVerisi.for ?? oyuncuVerisi.huc ?? VARSAYILAN_OYUNCU.for,
+    hiz: oyuncuVerisi.hiz ?? VARSAYILAN_OYUNCU.hiz,
+    pas: oyuncuVerisi.pas ?? VARSAYILAN_OYUNCU.pas,
+    sut: oyuncuVerisi.sut ?? VARSAYILAN_OYUNCU.sut,
+  };
+}
+
+function webArayuzuCanliKadroVerisi(kayit, kadro, yedekler) {
+  const takimKadrosu = (takim) =>
+    Object.fromEntries(
+      Object.entries(takim || {}).map(([slot, oyuncu]) => [
+        slot,
+        oyuncu ? webArayuzuOyuncusunaDonustur(oyuncu) : null,
+      ])
+    );
+
+  return {
+    kadro: {
+      red: takimKadrosu(kadro?.red),
+      white: takimKadrosu(kadro?.white),
+    },
+    mod: kayit?.mod || "6v6",
+    yedekler: yedekleriDiziOlarakAl(yedekler).map(webArayuzuOyuncusunaDonustur),
+  };
 }
 
 function kadroSlotunuGec(takimKadro, isle) {
@@ -1278,22 +1365,23 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     return true;
   }
 
+  const mevcutDavetSnapshot = await get(ref(database, "sistem_hafizasi/davet_bekleyen"));
+  const mevcutDavet = mevcutDavetSnapshot.val();
+  if (
+    !mevcutDavet ||
+    !isimEslesiyorMu(mevcutDavet.isim, davetBekleyen.isim) ||
+    davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
+    mevcutDavet.slot !== slot
+  ) {
+    console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen davet değişmiş; yanıt uygulanmadı.`);
+    return true;
+  }
+
   if (olumsuzYanit) {
     let sonucBilgisi = null;
-    const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+    const sonuc = await runTransaction(ref(database, CANLI_KADRO_YOLU), (canliKadro) => {
       sonucBilgisi = null;
-      const mevcutDavet = hafiza?.davet_bekleyen;
-      if (
-        !mevcutDavet ||
-        !isimEslesiyorMu(mevcutDavet.isim, davetBekleyen.isim) ||
-        davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
-        mevcutDavet.slot !== slot
-      ) {
-        return;
-      }
-
-      const canliKadro = hafiza.canli_kadro;
-      if (!canliKadro) return;
+      if (!canliKadro?.kadro) return;
       const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
       if (
         !yedekler.length ||
@@ -1307,25 +1395,25 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
       const yeniDavetEdilen = yedekler.length > 1
         ? kadroOyuncusununAdi(yedekler[0])
         : null;
-      const yeniDavet = yeniDavetEdilen
-        ? { ...mevcutDavet, isim: yeniDavetEdilen, takim, slot }
-        : null;
       sonucBilgisi = {
         reddeden: kadroOyuncusununAdi(reddeden) || davetBekleyen.isim,
         yeniDavetEdilen,
+        yeniDavet: yeniDavetEdilen
+          ? { ...davetBekleyen, isim: yeniDavetEdilen, takim, slot }
+          : null,
       };
 
-      return {
-        ...hafiza,
-        canli_kadro: { ...canliKadro, yedekler },
-        davet_bekleyen: yeniDavet,
-      };
+      return webArayuzuCanliKadroVerisi(canliKadro, canliKadro.kadro, yedekler);
     });
 
     if (!sonuc.committed || !sonucBilgisi) {
       console.log(`ℹ️ ${davetBekleyen.isim} için bekleyen yedek kaydı değişmiş; ret yanıtı uygulanmadı.`);
       return true;
     }
+    await set(
+      ref(database, "sistem_hafizasi/davet_bekleyen"),
+      sonucBilgisi.yeniDavet
+    );
 
     const redMesaji = sonucBilgisi.yeniDavetEdilen
       ? `⏭️ *${sonucBilgisi.reddeden}* bu hafta müsait değilmiş.\n\n🎉 *Hey ${sonucBilgisi.yeniDavetEdilen}, sıra sende!* Sahada yerin hazır. Geliyorsan lütfen gruba *+1* veya *gelirim* yaz!`
@@ -1345,31 +1433,14 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
   }
 
   let yerlesenOyuncu = null;
-  const sonuc = await runTransaction(ref(database, "sistem_hafizasi"), (hafiza) => {
+  const sonuc = await runTransaction(ref(database, CANLI_KADRO_YOLU), (canliKadro) => {
     yerlesenOyuncu = null;
-    const mevcutDavet = hafiza?.davet_bekleyen;
-    if (
-      !mevcutDavet ||
-      !isimEslesiyorMu(mevcutDavet.isim, davetBekleyen.isim) ||
-      davetTakiminiNormallestir(mevcutDavet.takim) !== takim ||
-      mevcutDavet.slot !== slot
-    ) {
-      return;
-    }
-
-    const canliKadro = hafiza.canli_kadro;
-    if (!canliKadro) return;
-    const canliIcerisiKadroMu = Boolean(canliKadro.kadro);
-    const kadro = canliIcerisiKadroMu
-      ? {
-          ...canliKadro.kadro,
-          red: { ...(canliKadro.kadro.red || {}) },
-          white: { ...(canliKadro.kadro.white || {}) },
-        }
-      : {
-          red: { ...(canliKadro.red || {}) },
-          white: { ...(canliKadro.white || {}) },
-        };
+    if (!canliKadro?.kadro) return;
+    const kadro = {
+      ...canliKadro.kadro,
+      red: { ...(canliKadro.kadro.red || {}) },
+      white: { ...(canliKadro.kadro.white || {}) },
+    };
     if (kadro[takim][slot]) return;
 
     const yedekler = yedekleriDiziOlarakAl(canliKadro.yedekler);
@@ -1380,26 +1451,21 @@ async function davetYanitiniIsle(msg, body, davetBekleyen, contact) {
     if (yedekIndex < 0) return;
 
     yedekler.splice(yedekIndex, 1);
-    kadro[takim][slot] = oyuncu;
+    kadro[takim][slot] = webArayuzuOyuncusunaDonustur(oyuncu);
     yerlesenOyuncu = oyuncu.isim;
-    return {
-      ...hafiza,
-      canli_kadro: canliIcerisiKadroMu
-        ? { ...canliKadro, kadro, yedekler }
-        : { ...canliKadro, red: kadro.red, white: kadro.white, yedekler },
-      davet_bekleyen: null,
-    };
+    return webArayuzuCanliKadroVerisi(canliKadro, kadro, yedekler);
   });
 
   if (!sonuc.committed || !yerlesenOyuncu) {
     console.log(`ℹ️ ${davetBekleyen.isim} daveti için kadro kaydı değişmiş; kabul yanıtı uygulanmadı.`);
     return true;
   }
+  await set(ref(database, "sistem_hafizasi/davet_bekleyen"), null);
 
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return true;
   await client.sendMessage(
     msg.hedefGrupId,
-    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val()?.canli_kadro)}`
+    `✅ *Kadro Tamamlandı!*\n\n🎉 *${yerlesenOyuncu}* daveti kabul etti ve takımdaki yerini aldı! Güncel dizilim taktik tahtasına işlendi.\n\n${guncelKadroMetniOlustur(sonuc.snapshot.val())}`
   );
   return true;
 }
@@ -1438,8 +1504,7 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
     }
   }
   let degisiklik = null;
-  const canliIcerisiKadroMu = Boolean(canliKadroVerisi.kadro);
-  const kadroNesnesi = canliIcerisiKadroMu ? canliKadroVerisi.kadro : canliKadroVerisi;
+  const kadroNesnesi = canliKadroVerisi.kadro || {};
   const kadro = {
     red: { ...(kadroNesnesi.red || {}) },
     white: { ...(kadroNesnesi.white || {}) },
@@ -1489,16 +1554,18 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
     }
 
     if (bosYer) {
-      kadro[bosYer.takim][bosYer.slot] = oyuncu;
+      kadro[bosYer.takim][bosYer.slot] = webArayuzuOyuncusunaDonustur(oyuncu);
       degisiklik = { tur: "ana_kadro", isim: oyuncu.isim };
     } else {
-      yedekler.push(oyuncu);
+      yedekler.push(webArayuzuOyuncusunaDonustur(oyuncu));
       degisiklik = { tur: "yedek", isim: oyuncu.isim, sira: yedekler.length };
     }
 
-    const guncellenmisCanliVeri = canliIcerisiKadroMu
-      ? { ...canliKadroVerisi, kadro, yedekler }
-      : { ...canliKadroVerisi, red: kadro.red, white: kadro.white, yedekler };
+    const guncellenmisCanliVeri = webArayuzuCanliKadroVerisi(
+      canliKadroVerisi,
+      kadro,
+      yedekler
+    );
     await set(ref(database, CANLI_KADRO_YOLU), guncellenmisCanliVeri);
     degisiklik.canliKadroVerisi = guncellenmisCanliVeri;
   }
@@ -1557,8 +1624,7 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
       return;
     }
   }
-  const canliIcerisiKadroMu = Boolean(canliKadroVerisi.kadro);
-  const kadroNesnesi = canliIcerisiKadroMu ? canliKadroVerisi.kadro : canliKadroVerisi;
+  const kadroNesnesi = canliKadroVerisi.kadro || {};
   const kadro = {
     red: { ...(kadroNesnesi.red || {}) },
     white: { ...(kadroNesnesi.white || {}) },
@@ -1570,9 +1636,11 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   );
   if (yedekIndex >= 0) {
     yedekler.splice(yedekIndex, 1);
-    const guncellenmisCanliVeri = canliIcerisiKadroMu
-      ? { ...canliKadroVerisi, kadro, yedekler }
-      : { ...canliKadroVerisi, red: kadro.red, white: kadro.white, yedekler };
+    const guncellenmisCanliVeri = webArayuzuCanliKadroVerisi(
+      canliKadroVerisi,
+      kadro,
+      yedekler
+    );
     await set(ref(database, CANLI_KADRO_YOLU), guncellenmisCanliVeri);
     if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
     await client.sendMessage(
@@ -1613,9 +1681,11 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   const ilkYedek = yedekler[0];
   const davetEdilenIsim = kadroOyuncusununAdi(ilkYedek);
 
-  const guncellenmisCanliVeri = canliIcerisiKadroMu
-    ? { ...canliKadroVerisi, kadro, yedekler }
-    : { ...canliKadroVerisi, red: kadro.red, white: kadro.white, yedekler };
+  const guncellenmisCanliVeri = webArayuzuCanliKadroVerisi(
+    canliKadroVerisi,
+    kadro,
+    yedekler
+  );
   await set(ref(database, CANLI_KADRO_YOLU), guncellenmisCanliVeri);
   await set(ref(database, "sistem_hafizasi/davet_bekleyen"), davetEdilenIsim
     ? { isim: davetEdilenIsim, takim, slot }
