@@ -632,30 +632,8 @@ const client = new Client({
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
       '--disable-gpu',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-features=site-per-process',
       '--no-first-run',
-      '--no-zygote',
-      '--no-default-browser-check',
-      '--disable-extensions',
-      '--disable-runtime-info',
-      '--no-experiments',
-      '--disable-breakpad',
-      '--disable-notifications',
-      '--autoplay-policy=user-gesture-required',
-      '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      '--disable-web-security',
-      '--allow-running-insecure-content',
-      '--disable-component-extensions-with-background-pages',
-      '--disable-background-networking',
-      '--mandate-sync-proxy-for-tests',
-      '--disable-features=AudioServiceSandbox',
-      '--disable-software-rasterizer',
-      '--prerender-from-omnibox=disabled',
     ],
   },
 });
@@ -664,6 +642,7 @@ let whatsappAuthenticated = false;
 let whatsappReady = false;
 let reconnectTimer = null;
 let reconnectInProgress = false;
+let readyWatchdogTimer = null;
 
 client.on("qr", async (qr) => {
   console.log("QR kod üretildi. Telefonunuzdan taratın:");
@@ -684,10 +663,50 @@ client.on("qr", async (qr) => {
 
 client.on("authenticated", () => {
   whatsappAuthenticated = true;
+  reconnectInProgress = false;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  if (readyWatchdogTimer) clearTimeout(readyWatchdogTimer);
+  readyWatchdogTimer = setTimeout(() => {
+    readyWatchdogTimer = null;
+    void (async () => {
+      if (!whatsappAuthenticated || whatsappReady) return;
+
+      let storeHazir = false;
+      try {
+        storeHazir = await client.pupPage.evaluate(() =>
+          Boolean(window.Store && window.Store.Msg && window.Store.Chat)
+        );
+      } catch (error) {
+        console.error("❌ WhatsApp Web hazır durumu kontrol edilemedi:", error);
+      }
+
+      if (storeHazir) {
+        console.warn("⚠️ WhatsApp hazır olayı gelmedi; hazır Store üzerinden devam ediliyor.");
+        await istemciHazirOldu();
+        return;
+      }
+
+      console.error("❌ WhatsApp Web 25 saniyede hazır olmadı; istemci yeniden başlatılıyor.");
+      whatsappAuthenticated = false;
+      whatsappReady = false;
+      reconnectInProgress = true;
+      try {
+        await client.destroy();
+      } catch (error) {
+        console.error("❌ WhatsApp istemcisi watchdog öncesi kapatılamadı:", error);
+      }
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
+      await botuBaslat();
+    })().catch((error) => {
+      console.error("❌ WhatsApp hazır watchdog başarısız oldu:", error);
+    });
+  }, 25000);
   console.log("⏳ WhatsApp Web arayüzü yükleniyor, lütfen bekleyin...");
   console.log("✅ WhatsApp kimlik doğrulandı; yerel oturum kaydedildi.");
 });
@@ -697,8 +716,16 @@ client.on('loading_screen', (percent, message) =>
 );
 
 async function istemciHazirOldu() {
+  if (readyWatchdogTimer) {
+    clearTimeout(readyWatchdogTimer);
+    readyWatchdogTimer = null;
+  }
   if (whatsappReady) return;
   whatsappReady = true;
+  if (!client.info) {
+    console.log("⏳ WhatsApp istemci bilgileri bekleniyor...");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
 
   if (botHeartbeatInterval) clearInterval(botHeartbeatInterval);
   haftalikYoklamaZamanlayicisiniBaslat();
@@ -1605,6 +1632,10 @@ client.on("message_create", mesajıIsle);
 client.on("auth_failure", async (msg) => {
   whatsappAuthenticated = false;
   whatsappReady = false;
+  if (readyWatchdogTimer) {
+    clearTimeout(readyWatchdogTimer);
+    readyWatchdogTimer = null;
+  }
   console.error("❌ WhatsApp kimlik doğrulama hatası:", msg);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
@@ -1643,6 +1674,10 @@ function yenidenBaglanmayiPlanla() {
 client.on("disconnected", async (reason) => {
   whatsappAuthenticated = false;
   whatsappReady = false;
+  if (readyWatchdogTimer) {
+    clearTimeout(readyWatchdogTimer);
+    readyWatchdogTimer = null;
+  }
   console.log("⚠️ WhatsApp bağlantısı koptu:", reason);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ QR kodu Firebase'den temizlenemedi:", error);
