@@ -765,6 +765,14 @@ async function mesajıIsle(msg) {
     "akıllı kadro dağıtımı",
     "halı saha otomasyon botu aktif",
     "maç tamamlandı",
+    "ana kadro dolu",
+    "güncel kadro durumu",
+    "yedek olarak eklendi",
+    "daveti kabul etti",
+    "sıra sende",
+    "sana yer açıldı",
+    "kadroda kayıtlısın",
+    "yedek kulübesine alıyorum",
   ];
   if (
     msg.fromMe &&
@@ -881,12 +889,20 @@ async function mesajıIsle(msg) {
     return;
   }
 
-  if (!body.toLocaleUpperCase("tr-TR").includes("ANA KADRO")) return;
+  const anaKadroBasligiVarMi = body
+    .split(/\r?\n/)
+    .some((satir) => satir.toLocaleUpperCase("tr-TR").includes("ANA KADRO"));
+  if (!anaKadroBasligiVarMi) return;
 
   console.log(`🎯 [BAŞARILI] Bot Test grubundan mesaj yakalandı! Gönderen ID: ${msg.from}`);
 
   try {
     const { anaKadro, yedekKadro: yedekKadroIsimleri } = isimListesiniAyikla(body);
+    if (anaKadro.length < 5) {
+      console.log("ℹ️ Kadro dağıtımı atlandı: ANA KADRO başlığının altında en az 5 oyuncu bulunmalı.");
+      return;
+    }
+
     const oyuncuHavuzu = await oyuncuHavuzunuGetir();
     const yedekler = yedekKadroIsimleri.map((isim, index) => {
       const oyuncu = oyuncuyuHavuzdaBul(isim, oyuncuHavuzu);
@@ -1267,46 +1283,46 @@ function rastgeleSec(liste) {
 
 function anaKadrodaZatenVarMesaji(isim) {
   return rastgeleSec([
-    `😎 *${isim}*, kadroda yerin rezerve; +1'inle kadroya ikinci kez giremezsin!`,
-    `⚽ *${isim}*, adın zaten ilk 11'de (tamam, 7'de) yazıyor. Çift krampon yeter!`,
-    `📝 *${isim}*, seni kadroya çoktan yazdık; bu +1'i yedek kulübesine alıyorum.`,
-    `🏃 *${isim}*, sahada zaten varsın! Bir de kendine pas atmana gerek yok.`,
-    `✅ *${isim}*, kadroda kayıtlısın. Bu hafta seni klonlamıyoruz, tek kişilik yer var!`,
-    `😄 *${isim}*, adın kadroda duruyor; +1 mesajın da moral desteği sayıldı.`,
-    `🎟️ *${isim}*, biletin kesilmiş, koltuğun belli. Kadroda zaten yerin hazır!`,
-    `📋 *${isim}*, listeyi kontrol ettim: kadrodasın. Heyecandan iki kez yazdın galiba!`,
-    `🥅 *${isim}*, kadroda zaten top koşturacaksın; bu +1'i ısınma turu sayalım.`,
-    `🤝 *${isim}*, seni unutmadık merak etme; kadroda adın zaten baş köşede!`,
+    `😎 *${isim}*, kadroda yerin rezerve.\n+1'inle kadroya ikinci kez giremezsin!`,
+    `⚽ *${isim}*, adın zaten ilk 11'de (tamam, 7'de) yazıyor.\nÇift krampon yeter!`,
+    `📝 *${isim}*, seni kadroya çoktan yazdık.\nBu +1'i yedek kulübesine alıyorum.`,
+    `🏃 *${isim}*, sahada zaten varsın!\nBir de kendine pas atmana gerek yok.`,
+    `✅ *${isim}*, kadroda kayıtlısın.\nBu hafta seni klonlamıyoruz, tek kişilik yer var!`,
+    `😄 *${isim}*, adın kadroda duruyor.\n+1 mesajın da moral desteği sayıldı.`,
+    `🎟️ *${isim}*, biletin kesilmiş, koltuğun belli.\nKadroda zaten yerin hazır!`,
+    `📋 *${isim}*, listeyi kontrol ettim: kadrodasın.\nHeyecandan iki kez yazdın galiba!`,
+    `🥅 *${isim}*, kadroda zaten top koşturacaksın.\nBu +1'i ısınma turu sayalım.`,
+    `🤝 *${isim}*, seni unutmadık merak etme.\nKadroda adın zaten baş köşede!`,
   ]);
 }
 
 function yedekteZatenVarMesaji(isim, sira) {
   return rastgeleSec([
-    `⏳ *${isim}*, yedek listesinin ${sira}. sırasında zaten bekliyorsun; +1'le sıranı öne alamıyoruz!`,
-    `🪑 *${isim}*, yedek koltuğun ${sira}. sıra. Bir kez yazman yeter, mesajın sırayı değiştirmiyor!`,
-    `📋 *${isim}*, kaydın hazır: ${sira}. yedeksin. Listeye ikinci kez giriş yapmana gerek yok.`,
-    `😄 *${isim}*, ${sira}. yedek olarak sıradasın. +1'in geldi, numara sistemi çalışıyor!`,
-    `🫡 *${isim}*, yedek kuyruğunda ${sira}. sıradasın; yerini koruyorum, öne atlamaca yok!`,
-    `🎟️ *${isim}*, yedek biletin ${sira}. sıra için kesildi. Bir tane daha basmıyoruz!`,
-    `⚽ *${isim}*, yedek listesindesin (${sira}. sıra). Sahaya çağrılırsan haber uçuracağız!`,
-    `🔎 *${isim}*, kontrol ettim: ${sira}. yedeksin. Aynı +1'i iki kez saymıyoruz, VAR da onayladı!`,
-    `📣 *${isim}*, sıran ${sira}. yedek. Tribünden takip et, çağrı gelirse kramponları kap!`,
-    `🙌 *${isim}*, kaydın zaten ${sira}. yedek olarak duruyor. Bu mesajını da tezahürat hanesine yazdım!`,
+    `⏳ *${isim}*, yedek listesinin ${sira}. sırasında zaten bekliyorsun.\n+1'le sıranı öne alamıyoruz!`,
+    `🪑 *${isim}*, yedek koltuğun ${sira}. sıra.\nBir kez yazman yeter, mesajın sırayı değiştirmiyor!`,
+    `📋 *${isim}*, kaydın hazır: ${sira}. yedeksin.\nListeye ikinci kez giriş yapmana gerek yok.`,
+    `😄 *${isim}*, ${sira}. yedek olarak sıradasın.\n+1'in geldi, numara sistemi çalışıyor!`,
+    `🫡 *${isim}*, yedek kuyruğunda ${sira}. sıradasın.\nYerini koruyorum, öne atlamaca yok!`,
+    `🎟️ *${isim}*, yedek biletin ${sira}. sıra için kesildi.\nBir tane daha basmıyoruz!`,
+    `⚽ *${isim}*, yedek listesindesin (${sira}. sıra).\nSahaya çağrılırsan haber uçuracağız!`,
+    `🔎 *${isim}*, kontrol ettim: ${sira}. yedeksin.\nAynı +1'i iki kez saymıyoruz, VAR da onayladı!`,
+    `📣 *${isim}*, sıran ${sira}. yedek.\nTribünden takip et, çağrı gelirse kramponları kap!`,
+    `🙌 *${isim}*, kaydın zaten ${sira}. yedek olarak duruyor.\nBu mesajını da tezahürat hanesine yazdım!`,
   ]);
 }
 
 function yedekSonunaEklendiMesaji(isim, sira) {
   return rastgeleSec([
-    `⏳ Ana kadro dolu; *${isim}* ${sira}. yedek olarak eklendi. Bence sana sıra gelmez, fazla ümitlenme!`,
-    `🪑 *${isim}* yedek listesinin sonuna, ${sira}. sıraya eklendi. Kendine başka planlar yap, bu hafta yer çıkmaz gibi!`,
-    `📋 *${isim}*, ${sira}. yedeksin. Kramponları hazırla ama şimdilik takvimi de boşuna kilitleme!`,
-    `😅 Kadro dolu olduğu için *${isim}* ${sira}. yedek oldu. Sahaya çıkma ihtimalin var... matematiksel olarak!`,
-    `⏳ *${isim}* yedek kuyruğunun ${sira}. sırasında. Çok erken sevinme; sıranın sana gelmesi biraz sürpriz olur!`,
-    `🎟️ *${isim}* ${sira}. yedek olarak yazıldı. Bu hafta planını yap, telefonun çalarsa bonus olur!`,
-    `🫡 *${isim}*, yedek listesinin sonuna (${sira}. sıra) eklendin. Umudu kesme ama başka planı da iptal etme!`,
-    `⚽ Kadro doldu; *${isim}* ${sira}. yedek. Forma çantada dursun, ama tozunu alman gerekmeyebilir!`,
-    `📣 *${isim}* ${sira}. yedek olarak listeye girdi. Sana sıra gelirse bunu haftanın sürprizi ilan ederiz!`,
-    `🙃 *${isim}*, ${sira}. yedeksin. Bu hafta saha kenarı manzarası da fena değil, fazla ümitlenme!`,
+    `⏳ Ana kadro dolu; *${isim}* ${sira}. yedek olarak eklendi.\nBence sana sıra gelmez, fazla ümitlenme!`,
+    `🪑 *${isim}* yedek listesinin sonuna, ${sira}. sıraya eklendi.\nKendine başka planlar yap, bu hafta yer çıkmaz gibi!`,
+    `📋 *${isim}*, ${sira}. yedeksin.\nKramponları hazırla ama şimdilik takvimi de boşuna kilitleme!`,
+    `😅 Kadro dolu olduğu için *${isim}* ${sira}. yedek oldu.\nSahaya çıkma ihtimalin var... matematiksel olarak!`,
+    `⏳ *${isim}* yedek kuyruğunun ${sira}. sırasında.\nÇok erken sevinme; sıranın sana gelmesi biraz sürpriz olur!`,
+    `🎟️ *${isim}* ${sira}. yedek olarak yazıldı.\nBu hafta planını yap, telefonun çalarsa bonus olur!`,
+    `🫡 *${isim}*, yedek listesinin sonuna (${sira}. sıra) eklendin.\nUmudu kesme ama başka planı da iptal etme!`,
+    `⚽ Kadro doldu; *${isim}* ${sira}. yedek.\nForma çantada dursun, ama tozunu alman gerekmeyebilir!`,
+    `📣 *${isim}* ${sira}. yedek olarak listeye girdi.\nSana sıra gelirse bunu haftanın sürprizi ilan ederiz!`,
+    `🙃 *${isim}*, ${sira}. yedeksin.\nBu hafta saha kenarı manzarası da fena değil, fazla ümitlenme!`,
   ]);
 }
 
