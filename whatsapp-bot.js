@@ -712,9 +712,14 @@ client.on("ready", async () => {
 });
 
 async function mesajıIsle(msg) {
+  if (!msg) return;
   console.log("📥 HAM SİNYAL:", msg.from, msg.body?.substring(0, 20));
   if (msg.timestamp < botBaslangicZamani) return;
-  const hedefGrupId = msg.fromMe ? msg.to : msg.from;
+  const chat = await msg.getChat();
+  if (!chat.isGroup) return;
+  const grupAdi = (chat.name || "").toLocaleLowerCase("tr-TR");
+  if (!grupAdi.includes("bot test") && !grupAdi.includes("has kadro")) return;
+  const hedefGrupId = chat.id._serialized;
   msg.hedefGrupId = hedefGrupId;
 
   console.log(`📡 [YENİ MESAJ GELDİ] -> msg.from: "${msg?.from}" | Gövde: "${String(msg?.body || "").substring(0, 15)}..."`);
@@ -741,9 +746,6 @@ async function mesajıIsle(msg) {
       kucukGovde.includes(cumle.toLocaleLowerCase("tr-TR"))
     )
   ) return;
-
-  const izinVerilenGrupIDs = ["120363415017155084@g.us", "120363162701833@lid", "132628606922999@lid", "61027207114891@lid"];
-  if (!izinVerilenGrupIDs.includes(msg.from)) return;
 
   let canliKadroVerisi = null;
   if (
@@ -784,7 +786,16 @@ async function mesajıIsle(msg) {
   if (davetBekleyen) {
     try {
       contact = await msg.getContact();
-      const davetYanitlandi = await davetYanitiniIsle(msg, body, davetBekleyen, contact);
+    } catch (error) {
+      console.error("❌ Bekleyen davet yanıtı için kişi bilgisi alınamadı:", error);
+    }
+    try {
+      const davetYanitlandi = await davetYanitiniIsle(
+        msg,
+        body,
+        davetBekleyen,
+        contact
+      );
       if (davetYanitlandi) return;
     } catch (error) {
       console.error("❌ Bekleyen davet yanıtı işlenemedi:", error);
@@ -812,7 +823,12 @@ async function mesajıIsle(msg) {
   let katilimAyrilmaBilgisi = null;
   if (katilimAyrilmaKomutuMu) {
     try {
-      katilimAyrilmaBilgisi = await katilimAyrilmaKisisiniBul(msg, canliKadroVerisi);
+      katilimAyrilmaBilgisi = await katilimAyrilmaKisisiniBul(
+        msg,
+        canliKadroVerisi,
+        contact
+      );
+      contact = katilimAyrilmaBilgisi.contact || contact;
       console.log(
         "🔍 Katılım/Ayrılma algılandı -> Ham İsim:",
         katilimAyrilmaBilgisi.bulunanIsim,
@@ -841,7 +857,6 @@ async function mesajıIsle(msg) {
 
   if (katilmaKomutuMu) {
     try {
-      contact = contact || await msg.getContact();
       await artiBirIsle(msg, contact, katilimAyrilmaBilgisi, canliKadroVerisi);
     } catch (error) {
       console.error("❌ Katılma isteği işlenemedi:", error);
@@ -856,7 +871,7 @@ async function mesajıIsle(msg) {
     return;
   }
 
-  if (!(msg.body || "").toUpperCase().includes("ANA KADRO")) return;
+  if (!body.toLocaleUpperCase("tr-TR").includes("ANA KADRO")) return;
 
   console.log(`🎯 [BAŞARILI] Bot Test grubundan mesaj yakalandı! Gönderen ID: ${msg.from}`);
 
@@ -1005,21 +1020,24 @@ function esnekIsimEslesti(bulunanIsim, adayIsim) {
   return isimEslesiyorMu(bulunanIsim, adayIsim);
 }
 
-async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null) {
+async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null, contact = null) {
   const adayIsimler = [];
-  const notifyName = String(msg?._data?.notifyName || "").trim();
-  if (notifyName) adayIsimler.push(notifyName);
 
-  let contact = null;
-  try {
-    contact = await msg.getContact();
-  } catch (error) {
-    console.error("❌ Gönderen kişi bilgisi alınamadı:", error);
+  if (!contact) {
+    try {
+      contact = await msg.getContact();
+    } catch (error) {
+      console.error("❌ Gönderen kişi bilgisi alınamadı:", error);
+    }
   }
   const contactName = String(contact?.name || "").trim();
   const pushName = String(contact?.pushname || "").trim();
   if (contactName) adayIsimler.push(contactName);
   if (pushName && pushName !== contactName) adayIsimler.push(pushName);
+  if (adayIsimler.length === 0) {
+    const notifyName = String(msg?._data?.notifyName || "").trim();
+    if (notifyName) adayIsimler.push(notifyName);
+  }
   if (msg.fromMe) {
     adayIsimler.push("Erhan Ersoy");
   }
@@ -1253,6 +1271,7 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
     katilimAyrilmaBilgisi?.bulunanIsim,
     contact?.name,
     contact?.pushname,
+    !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
     msg.fromMe ? "Erhan Ersoy" : null,
   ]
     .map(oyuncuAdiAnahtari)
@@ -1358,6 +1377,7 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
   if (!msg.hedefGrupId || (!msg.hedefGrupId.includes("@g.us") && !msg.hedefGrupId.includes("@lid"))) return;
   await client.sendMessage(msg.hedefGrupId, mesaj);
   console.log(`✅ Katılma isteği işlendi: ${degisiklik.isim} (${degisiklik.tur}).`);
+  return;
 }
 
 async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, canliKadroVerisi = null) {
@@ -1368,12 +1388,17 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   }
 
   if (!contact && !katilimAyrilmaBilgisi) {
-    contact = await msg.getContact();
+    try {
+      contact = await msg.getContact();
+    } catch (error) {
+      console.error("❌ -1 gönderen kişi bilgisi alınamadı:", error);
+    }
   }
   const gonderenAdlari = [
     katilimAyrilmaBilgisi?.bulunanIsim,
     contact?.name,
     contact?.pushname,
+    !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
     msg.fromMe ? "Erhan Ersoy" : null,
   ]
     .map(oyuncuAdiAnahtari)
@@ -1479,6 +1504,7 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   console.log(
     `✅ ${degisiklik.cikanIsim} kadrodan çıkarıldı; ${degisiklik.davetEdilenIsim} davet edildi (${degisiklik.takim}, ${degisiklik.slot}).`
   );
+  return;
 }
 
 
