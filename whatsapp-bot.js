@@ -621,6 +621,7 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 const client = new Client({
   authTimeoutMs: 60000,
   authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
+  webVersionCache: { type: 'none' },
   puppeteer: {
     headless: true,
     executablePath: require('fs').existsSync('C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe')
@@ -661,7 +662,6 @@ const client = new Client({
 
 let whatsappAuthenticated = false;
 let whatsappReady = false;
-let readyFallbackTimer = null;
 let reconnectTimer = null;
 let reconnectInProgress = false;
 
@@ -688,23 +688,6 @@ client.on("authenticated", () => {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
-  if (readyFallbackTimer) clearTimeout(readyFallbackTimer);
-  readyFallbackTimer = setTimeout(async () => {
-    readyFallbackTimer = null;
-    if (whatsappReady) return;
-
-    try {
-      const durum = await client.getState();
-      if (durum === "CONNECTED") {
-        console.warn("⚠️ WhatsApp hazır olayı 15 saniyede gelmedi; hazır olma akışı yedekten çalıştırılıyor.");
-        await istemciHazirOldu();
-      } else {
-        console.warn("⚠️ WhatsApp hazır yedek kontrolünde bağlantı durumu:", durum);
-      }
-    } catch (error) {
-      console.error("❌ WhatsApp hazır yedek kontrolü başarısız:", error);
-    }
-  }, 15000);
   console.log("⏳ WhatsApp Web arayüzü yükleniyor, lütfen bekleyin...");
   console.log("✅ WhatsApp kimlik doğrulandı; yerel oturum kaydedildi.");
 });
@@ -716,10 +699,6 @@ client.on('loading_screen', (percent, message) =>
 async function istemciHazirOldu() {
   if (whatsappReady) return;
   whatsappReady = true;
-  if (readyFallbackTimer) {
-    clearTimeout(readyFallbackTimer);
-    readyFallbackTimer = null;
-  }
 
   if (botHeartbeatInterval) clearInterval(botHeartbeatInterval);
   haftalikYoklamaZamanlayicisiniBaslat();
@@ -1549,10 +1528,6 @@ client.on("message_create", mesajıIsle);
 client.on("auth_failure", async (msg) => {
   whatsappAuthenticated = false;
   whatsappReady = false;
-  if (readyFallbackTimer) {
-    clearTimeout(readyFallbackTimer);
-    readyFallbackTimer = null;
-  }
   console.error("❌ WhatsApp kimlik doğrulama hatası:", msg);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ Eski QR kodu Firebase'den temizlenemedi:", error);
@@ -1591,10 +1566,6 @@ function yenidenBaglanmayiPlanla() {
 client.on("disconnected", async (reason) => {
   whatsappAuthenticated = false;
   whatsappReady = false;
-  if (readyFallbackTimer) {
-    clearTimeout(readyFallbackTimer);
-    readyFallbackTimer = null;
-  }
   console.log("⚠️ WhatsApp bağlantısı koptu:", reason);
   await canliQrKodunuTemizle().catch((error) => {
     console.error("❌ QR kodu Firebase'den temizlenemedi:", error);
