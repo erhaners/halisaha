@@ -786,25 +786,12 @@ async function mesajıIsle(msg) {
 
   const body = typeof msg.body === "string" ? msg.body : "";
   if (!body.trim()) return;
-  const temiz = body.trim().toLocaleLowerCase("tr-TR");
+  const etiketliMesajMi = Boolean(msg.mentionedIds?.length) || body.includes("@");
+  const ayrilmaKomutuMu = olumsuzYanitMi(body);
+  const katilmaKomutuMu = olumluYanitMi(body);
 
   let canliKadroVerisi = null;
-  if (
-    temiz === "-1" ||
-    temiz === "_1" ||
-    temiz === "-" ||
-    temiz.includes("gelemiyorum") ||
-    temiz.includes("gelemem") ||
-    temiz.includes("yokum") ||
-    temiz.includes("katılamayacağım") ||
-    temiz === "+1" ||
-    temiz === "+" ||
-    temiz === "+ 1" ||
-    temiz.includes("beni de ekle") ||
-    temiz.includes("gelirim") ||
-    temiz.includes("varım") ||
-    temiz.includes("kadroya ekle")
-  ) {
+  if (ayrilmaKomutuMu || katilmaKomutuMu) {
     try {
       const canliKadroSnapshot = await get(ref(database, CANLI_KADRO_YOLU));
       canliKadroVerisi = canliKadroSnapshot.val();
@@ -824,7 +811,7 @@ async function mesajıIsle(msg) {
   }
 
   let contact = null;
-  if (davetBekleyen) {
+  if (davetBekleyen && !etiketliMesajMi) {
     contact = await guvenliKisiBilgisiAl(msg);
     try {
       const davetYanitlandi = await davetYanitiniIsle(
@@ -840,22 +827,6 @@ async function mesajıIsle(msg) {
     }
   }
 
-  const ayrilmaKomutuMu =
-    temiz === "-1" ||
-    temiz === "_1" ||
-    temiz === "-" ||
-    temiz.includes("gelemiyorum") ||
-    temiz.includes("gelemem") ||
-    temiz.includes("yokum") ||
-    temiz.includes("katılamayacağım");
-  const katilmaKomutuMu =
-    temiz === "+1" ||
-    temiz === "+" ||
-    temiz === "+ 1" ||
-    temiz.includes("beni de ekle") ||
-    temiz.includes("gelirim") ||
-    temiz.includes("varım") ||
-    temiz.includes("kadroya ekle");
   const katilimAyrilmaKomutuMu = ayrilmaKomutuMu || katilmaKomutuMu;
   let katilimAyrilmaBilgisi = null;
   if (katilimAyrilmaKomutuMu) {
@@ -865,7 +836,9 @@ async function mesajıIsle(msg) {
         canliKadroVerisi,
         contact
       );
-      contact = katilimAyrilmaBilgisi.contact || contact;
+      contact = etiketliMesajMi
+        ? katilimAyrilmaBilgisi.contact
+        : katilimAyrilmaBilgisi.contact || contact;
       console.log(
         "🔍 Katılım/Ayrılma algılandı -> Ham İsim:",
         katilimAyrilmaBilgisi.bulunanIsim,
@@ -1073,20 +1046,44 @@ async function guvenliKisiBilgisiAl(msg) {
 
 async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null, contact = null) {
   const adayIsimler = [];
+  const etiketliKisiId = msg.mentionedIds?.[0];
+  const etiketliMesajMi = Boolean(msg.mentionedIds?.length) ||
+    String(msg.body || "").includes("@");
 
-  if (!contact) {
-    contact = await guvenliKisiBilgisiAl(msg);
-  }
-  const contactName = String(contact?.name || "").trim();
-  const pushName = String(contact?.pushname || "").trim();
-  if (contactName) adayIsimler.push(contactName);
-  if (pushName && pushName !== contactName) adayIsimler.push(pushName);
-  if (adayIsimler.length === 0) {
-    const notifyName = String(msg?._data?.notifyName || "").trim();
-    if (notifyName) adayIsimler.push(notifyName);
-  }
-  if (msg.fromMe) {
-    adayIsimler.push("Erhan Ersoy");
+  if (etiketliMesajMi) {
+    contact = null;
+    if (etiketliKisiId) {
+      try {
+        contact = await client.getContactById(etiketliKisiId);
+      } catch (error) {
+        console.error("❌ Etiketlenen kişinin WhatsApp bilgileri alınamadı:", error);
+      }
+    }
+
+    const contactName = String(contact?.name || "").trim();
+    const pushName = String(contact?.pushname || "").trim();
+    if (contactName) adayIsimler.push(contactName);
+    if (pushName && pushName !== contactName) adayIsimler.push(pushName);
+
+    const mesajdakiIsim = etiketliKisiAdiniAl(msg.body);
+    if (mesajdakiIsim && !adayIsimler.includes(mesajdakiIsim)) {
+      adayIsimler.push(mesajdakiIsim);
+    }
+  } else {
+    if (!contact) {
+      contact = await guvenliKisiBilgisiAl(msg);
+    }
+    const contactName = String(contact?.name || "").trim();
+    const pushName = String(contact?.pushname || "").trim();
+    if (contactName) adayIsimler.push(contactName);
+    if (pushName && pushName !== contactName) adayIsimler.push(pushName);
+    if (adayIsimler.length === 0) {
+      const notifyName = String(msg?._data?.notifyName || "").trim();
+      if (notifyName) adayIsimler.push(notifyName);
+    }
+    if (msg.fromMe) {
+      adayIsimler.push("Erhan Ersoy");
+    }
   }
 
   let bulunanIsim = adayIsimler[0] || "";
@@ -1136,15 +1133,37 @@ async function katilimAyrilmaKisisiniBul(msg, canliKadroVerisi = null, contact =
   return { bulunanIsim, oyuncu: null, contact };
 }
 
+function etiketliKisiAdiniAl(metin) {
+  return String(metin || "")
+    .replace(/@/g, " ")
+    .replace(/(^|[\s,.;!?])(?:\+\s*1|-\s*1|_\s*1|\+|-)(?=$|[\s,.;!?])/g, " ")
+    .replace(
+      /(^|[\s,.;!?])(?:beni de ekle|ben de varım|gelirim|varım|kadroya ekle|gelemiyorum|gelemem|yokum|katılamayacağım)(?=$|[\s,.;!?])/giu,
+      " "
+    )
+    .replace(/^[\s,.;!?]+|[\s,.;!?]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function yanitMetniniTemizle(yanit) {
+  return String(yanit || "")
+    .trim()
+    .toLocaleLowerCase("tr-TR")
+    .replace(/@\S+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function olumsuzYanitMi(yanit) {
-  const temiz = String(yanit || "").trim().toLocaleLowerCase("tr-TR");
-  return ["-1", "_1", "-"].includes(temiz) ||
+  const temiz = yanitMetniniTemizle(yanit);
+  return /(?:^|\s)(?:-1|_1|-)(?=\s|$)/.test(temiz) ||
     ["gelemiyorum", "gelemem", "yokum", "katılamayacağım"].some((ifade) => temiz.includes(ifade));
 }
 
 function olumluYanitMi(yanit) {
-  const temiz = String(yanit || "").trim().toLocaleLowerCase("tr-TR");
-  return ["+1", "+", "+ 1"].includes(temiz) ||
+  const temiz = yanitMetniniTemizle(yanit);
+  return /(?:^|\s)\+(?:\s*1)?(?=\s|$)/.test(temiz) ||
     ["beni de ekle", "gelirim", "varım", "ben de varım", "kadroya ekle"].some((ifade) => temiz.includes(ifade));
 }
 
@@ -1392,34 +1411,32 @@ async function artiBirIsle(msg, contact, katilimAyrilmaBilgisi = null, canliKadr
     return;
   }
 
-  const gonderenAdlari = [
-    katilimAyrilmaBilgisi?.bulunanIsim,
-    contact?.name,
-    contact?.pushname,
-    !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
-    msg.fromMe ? "Erhan Ersoy" : null,
-  ]
-    .map(oyuncuAdiAnahtari)
-    .filter(Boolean);
-  if (katilimAyrilmaBilgisi?.oyuncu) {
-    gonderenAdlari.push(oyuncuAdiAnahtari(katilimAyrilmaBilgisi.oyuncu.isim));
-  }
-  if (gonderenAdlari.length === 0) {
-    console.log("ℹ️ Katılma isteği gönderen kişinin rehber veya profil adı bulunamadı.");
-    return;
-  }
+  let oyuncu = katilimAyrilmaBilgisi?.oyuncu || null;
+  if (!oyuncu) {
+    const gonderenAdlari = [
+      katilimAyrilmaBilgisi?.bulunanIsim,
+      contact?.name,
+      contact?.pushname,
+      !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
+      msg.fromMe ? "Erhan Ersoy" : null,
+    ]
+      .map(oyuncuAdiAnahtari)
+      .filter(Boolean);
+    if (gonderenAdlari.length === 0) {
+      console.log("ℹ️ Katılma isteği gönderen kişinin rehber veya profil adı bulunamadı.");
+      return;
+    }
 
-  const oyuncu = katilimAyrilmaBilgisi?.oyuncu ||
-    (await oyuncuHavuzunuGetir()).find((aday) =>
+    oyuncu = (await oyuncuHavuzunuGetir()).find((aday) =>
       gonderenAdlari.some((gonderenAdi) =>
         esnekIsimEslesti(gonderenAdi, aday.isim)
       )
     );
-  if (!oyuncu) {
-    console.log(`ℹ️ Katılma isteği gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
-    return;
+    if (!oyuncu) {
+      console.log(`ℹ️ Katılma isteği gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
+      return;
+    }
   }
-
   let degisiklik = null;
   const canliIcerisiKadroMu = Boolean(canliKadroVerisi.kadro);
   const kadroNesnesi = canliIcerisiKadroMu ? canliKadroVerisi.kadro : canliKadroVerisi;
@@ -1513,34 +1530,33 @@ async function eksiBirIsle(msg, contact = null, katilimAyrilmaBilgisi = null, ca
   if (!contact && !katilimAyrilmaBilgisi) {
     contact = await guvenliKisiBilgisiAl(msg);
   }
-  const gonderenAdlari = [
-    katilimAyrilmaBilgisi?.bulunanIsim,
-    contact?.name,
-    contact?.pushname,
-    !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
-    msg.fromMe ? "Erhan Ersoy" : null,
-  ]
-    .map(oyuncuAdiAnahtari)
-    .filter(Boolean);
-  if (katilimAyrilmaBilgisi?.oyuncu) {
-    gonderenAdlari.push(oyuncuAdiAnahtari(katilimAyrilmaBilgisi.oyuncu.isim));
-  }
-  if (gonderenAdlari.length === 0) {
-    console.log("ℹ️ -1 gönderen kişinin rehber veya profil adı bulunamadı.");
-    return;
-  }
+  let gonderenAdlari = [];
+  let oyuncu = katilimAyrilmaBilgisi?.oyuncu || null;
+  if (!oyuncu) {
+    gonderenAdlari = [
+      katilimAyrilmaBilgisi?.bulunanIsim,
+      contact?.name,
+      contact?.pushname,
+      !contact?.name && !contact?.pushname ? msg._data?.notifyName : null,
+      msg.fromMe ? "Erhan Ersoy" : null,
+    ]
+      .map(oyuncuAdiAnahtari)
+      .filter(Boolean);
+    if (gonderenAdlari.length === 0) {
+      console.log("ℹ️ -1 gönderen kişinin rehber veya profil adı bulunamadı.");
+      return;
+    }
 
-  const oyuncu = katilimAyrilmaBilgisi?.oyuncu ||
-    (await oyuncuHavuzunuGetir()).find((aday) =>
+    oyuncu = (await oyuncuHavuzunuGetir()).find((aday) =>
       gonderenAdlari.some((gonderenAdi) =>
         esnekIsimEslesti(gonderenAdi, aday.isim)
       )
     );
-  if (!oyuncu) {
-    console.log(`ℹ️ -1 gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
-    return;
+    if (!oyuncu) {
+      console.log(`ℹ️ -1 gönderen kişi oyuncu havuzunda bulunamadı: ${gonderenAdlari.join(" / ")}`);
+      return;
+    }
   }
-
   const canliIcerisiKadroMu = Boolean(canliKadroVerisi.kadro);
   const kadroNesnesi = canliIcerisiKadroMu ? canliKadroVerisi.kadro : canliKadroVerisi;
   const kadro = {
