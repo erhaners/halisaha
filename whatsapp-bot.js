@@ -1932,9 +1932,6 @@ process.on("unhandledRejection", (reason) => {
 
 async function firebaseErisimiVarMi() {
   try {
-    const baglantiSnapshot = await get(ref(database, ".info/connected"));
-    if (baglantiSnapshot.val() !== true) return false;
-
     await get(ref(database, CANLI_KADRO_YOLU));
     return true;
   } catch (error) {
