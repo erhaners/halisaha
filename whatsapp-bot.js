@@ -15,6 +15,9 @@ const VARSAYILAN_OYUNCU = {
 const express = require("express");
 const qrcode = require("qrcode-terminal");
 const QRCode = require("qrcode");
+const fs = require("fs");
+const path = require("path");
+const { execFileSync } = require("child_process");
 const { Client, LocalAuth } = require("whatsapp-web.js");
 const { initializeApp, getApps } = require("firebase/app");
 const { getDatabase, ref, get, set, remove } = require("firebase/database");
@@ -22,6 +25,7 @@ const { getDatabase, ref, get, set, remove } = require("firebase/database");
 const app = express();
 const PORT = process.env.PORT || 10000;
 const CANLI_KADRO_YOLU = "sistem_hafizasi/canli_kadro";
+const WHATSAPP_PROFIL_YOLU = path.join(__dirname, ".wwebjs_auth", "session-halisaha-bot");
 const firebaseConfig = {
   apiKey: "AIzaSyCreidC1Ybdx_s7663HGnuYhqUBNwmAEXU",
   authDomain: "halisaha-taktik.firebaseapp.com",
@@ -620,7 +624,10 @@ async function akllliTakimlariKur(gelenIsimler, oyuncuHavuzu) {
 
 const client = new Client({
   authTimeoutMs: 60000,
-  authStrategy: new LocalAuth({ clientId: "halisaha-bot" }),
+  authStrategy: new LocalAuth({
+    clientId: "halisaha-bot",
+    dataPath: path.join(__dirname, ".wwebjs_auth"),
+  }),
   webVersionCache: { type: 'none' },
   puppeteer: {
     headless: true,
@@ -1923,13 +1930,56 @@ process.on("unhandledRejection", (reason) => {
   botHatasindaDurumuBildirVeCik();
 });
 
+async function firebaseErisimiVarMi() {
+  try {
+    const baglantiSnapshot = await get(ref(database, ".info/connected"));
+    if (baglantiSnapshot.val() !== true) return false;
+
+    await get(ref(database, CANLI_KADRO_YOLU));
+    return true;
+  } catch (error) {
+    console.warn("⚠️ Firebase erişimi henüz hazır değil:", error);
+    return false;
+  }
+}
+
+function oncekiTarayiciSurecleriniTemizle() {
+  if (process.platform !== "win32") return;
+
+  const profilYolu = WHATSAPP_PROFIL_YOLU.replace(/'/g, "''");
+  const powershellKomutu = [
+    "$ErrorActionPreference = 'Stop'",
+    `$profilePath = '${profilYolu}'`,
+    "$processes = Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' OR Name='chrome.exe'\" | Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($profilePath, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 }",
+    "foreach ($process in $processes) { Stop-Process -Id $process.ProcessId -Force -ErrorAction Stop; Wait-Process -Id $process.ProcessId -Timeout 5 -ErrorAction SilentlyContinue }",
+  ].join("; ");
+
+  execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", powershellKomutu], {
+    stdio: "ignore",
+  });
+}
+
+function tarayiciKilitleriniTemizle() {
+  for (const kilitDosyasi of ["SingletonLock", "SingletonCookie", "SingletonSocket"]) {
+    fs.rmSync(path.join(WHATSAPP_PROFIL_YOLU, kilitDosyasi), { force: true });
+  }
+}
+
 async function botuBaslat() {
   while (!whatsappAuthenticated) {
+    if (!(await firebaseErisimiVarMi())) {
+      console.log("⏳ İnternet/Firebase bağlantısı bekleniyor; 5 saniye sonra yeniden denenecek...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      continue;
+    }
+
     try {
       console.log("⏳ 1. Firebase QR temizleniyor...");
       await canliQrKodunuTemizle();
       console.log("⏳ 2. Firebase durum güncelleniyor...");
       await botDurumunuKaydet("DISCONNECTED");
+      oncekiTarayiciSurecleriniTemizle();
+      tarayiciKilitleriniTemizle();
       console.log("⏳ 3. WhatsApp Web ve Chromium başlatılıyor...");
       await client.initialize();
       return;
