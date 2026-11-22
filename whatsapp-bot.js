@@ -2005,8 +2005,18 @@ app.get("/", (req, res) => {
   res.send("Halisaha Bot Arka Planda Aktif!");
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Render port köprüsü aktif: ${PORT}`);
+});
+
+server.on("error", (error) => {
+  if (error.code === "EADDRINUSE") {
+    console.log("⚠️ Bot zaten arka planda çalışıyor, ikinci kopya kapatılıyor.");
+    process.exit(0);
+  }
+
+  console.error("❌ Bot sunucusu başlatılamadı:", error);
+  process.exit(1);
 });
 
 botuBaslat();
