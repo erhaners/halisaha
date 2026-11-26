@@ -12,4 +12,4 @@ if errorlevel 1 (
 
 echo Bot baslatiliyor...
 node whatsapp-bot.js
-pause
+exit
